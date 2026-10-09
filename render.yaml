@@ -1,23 +1,33 @@
 services:
   - type: web
     name: opay-app
-    runtime: python
+    env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    startCommand: gunicorn app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
+      - key: ADMIN_USERNAME
+        value: clinton
+      - key: ADMIN_PASSWORD
+        value: 147852
+      - key: ADMIN_PIN
+        value: "0803"
+      - key: INITIAL_BALANCE
+        value: "80754"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: opay-db
+          property: connectionString
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: ADMIN_USERNAME
-        value: clinton
-      - key: ADMIN_PASSWORD
-        value: "147852"
-      - key: ADMIN_PIN
-        value: "0803"
-      - key: INITIAL_BALANCE
-        value: "80754"
+
+databases:
+  - name: opay-db
+    databaseName: opay
+    user: opay
+    plan: free
