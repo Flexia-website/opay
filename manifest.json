@@ -1,0 +1,33 @@
+{
+  "id": "opay-app",
+  "name": "OPay",
+  "short_name": "OPay",
+  "description": "OPay - Mobile Money & Financial Services",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#ffffff",
+  "categories": ["finance", "productivity"],
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "form_factor": "narrow",
+      "purpose": "screenshot"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Airtime", "url": "./index.html#/airtime", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Data", "url": "./index.html#/data", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Transactions", "url": "./index.html#/transaction-history", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] }
+  ],
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

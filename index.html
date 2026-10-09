@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0" />
+<title>OPay</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#ffffff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="OPay" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+<link rel="icon" href="./icons/icon-192.png" />
+<link rel="stylesheet" href="css/base.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
+<link rel="dns-prefetch" href="https://res.cloudinary.com" />
+</head>
+<body>
+<div id="app-splash" style="position:fixed;inset:0;z-index:9999;background:#00B875;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-bottom:22vh;transition:opacity 0.4s ease;padding-left:1rem;padding-right:1rem;box-sizing:border-box;">
+  <div style="width:80px;height:80px;border-radius:9999px;background:white;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,0.12);">
+    <img src="./assets/opay-logo.png" alt="Logo" style="width:48px;height:48px;object-fit:contain;" />
+  </div>
+  <h1 style="margin:1.5rem 0 0;font-size:clamp(1rem, 5.5vw, 1.375rem);font-weight:800;color:#1B1464;text-align:center;width:100%;white-space:nowrap;">We are Beyond Banking</h1>
+  <div style="margin-top:2.75rem;display:flex;align-items:center;justify-content:center;gap:0.3rem;font-size:0.75rem;color:#1B1464;text-align:center;flex-wrap:wrap;width:100%;">
+    <img src="https://raw.githubusercontent.com/Flexia-website/FLEXIAPREMIUM/refs/heads/main/538-5381998_transparent-nigeria-coat-of-arm-png-png-download.png" alt="Nigeria Coat of Arms" style="width:28px;height:28px;object-fit:contain;" />
+    <span>Licensed by the <strong>CBN</strong> and insured by the</span>
+    <span>| <strong style="letter-spacing:0.5px;">NDIC</strong></span>
+  </div>
+</div>
+<script>
+  (function () {
+    var splash = document.getElementById("app-splash");
+    var alreadyShown = sessionStorage.getItem("opay_splash_shown");
+    if (alreadyShown) {
+      splash.style.display = "none";
+      return;
+    }
+    sessionStorage.setItem("opay_splash_shown", "1");
+    try {
+      var raw = localStorage.getItem("opay-customization");
+      if (raw) {
+        var custom = JSON.parse(raw);
+        if (custom.primaryColor) {
+          splash.style.background = custom.primaryColor;
+        }
+        var logoImg = custom.buttonImages && custom.buttonImages["app-logo"];
+        if (logoImg) {
+          var badgeImg = splash.querySelector("#app-splash img");
+          if (badgeImg) badgeImg.src = logoImg;
+        }
+      }
+    } catch (e) {}
+    
+    // Auto-hide splash after 2 seconds (fallback if app doesn't load)
+    setTimeout(function() {
+      if (splash && splash.style.display !== "none") {
+        splash.style.opacity = "0";
+        setTimeout(function() {
+          if (splash.parentNode) splash.remove();
+        }, 400);
+      }
+    }, 2000);
+  })();
+</script>
+<div id="root"></div>
+
+<!-- Network Status Monitor -->
+<div id="network-status" style="position:fixed;top:0;left:0;right:0;z-index:9998;background:#ef4444;color:white;padding:0.75rem;text-align:center;font-weight:600;font-size:0.875rem;display:none;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+  📡 No Internet Connection - App is in Offline Mode
+</div>
+
+<script>
+function updateNetworkStatus() {
+  const statusBar = document.getElementById('network-status');
+  const root = document.getElementById('root');
+  
+  if (!navigator.onLine) {
+    statusBar.style.display = 'block';
+    if (root) root.style.marginTop = '3rem';
+  } else {
+    statusBar.style.display = 'none';
+    if (root) root.style.marginTop = '0';
+  }
+}
+
+window.addEventListener('online', updateNetworkStatus);
+window.addEventListener('offline', updateNetworkStatus);
+updateNetworkStatus();
+</script>
+
+<!-- Screenshot & Screen Recording Protection -->
+<script>
+(function() {
+  // Detect screenshot attempts (iOS and Android methods)
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      // User switched away or took screenshot - log or take action
+      console.warn('Screen capture detected or app backgrounded');
+    }
+  });
+  
+  // Prevent keyboard shortcuts for screenshots
+  document.addEventListener('keydown', function(e) {
+    // Block Print Screen
+    if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+      e.preventDefault();
+      return false;
+    }
+    // Block Shift+PrintScreen
+    if (e.shiftKey && e.key === 'PrintScreen') {
+      e.preventDefault();
+      return false;
+    }
+  });
+  
+  // Block right-click context menu on sensitive overlays
+  document.addEventListener('contextmenu', function(e) {
+    if (e.target.closest('.overlay') || e.target.closest('[data-sensitive]')) {
+      e.preventDefault();
+      return false;
+    }
+  });
+  
+  // Disable DevTools in production-like environments
+  window.__DEV__ = false;
+  
+  // Check for DevTools (console, inspector, debugger)
+  let devtools = { open: false, orientation: null };
+  const threshold = 160;
+  
+  setInterval(function() {
+    if (window.outerHeight - window.innerHeight > threshold || window.outerWidth - window.innerWidth > threshold) {
+      if (!devtools.open) {
+        devtools.open = true;
+        console.clear();
+        console.log('%cSecurity Warning', 'color: red; font-size: 16px; font-weight: bold;');
+        console.log('Developer tools are disabled for security reasons.');
+      }
+    } else {
+      devtools.open = false;
+    }
+  }, 500);
+})();
+</script>
+
+<!-- Core -->
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/persistent-storage.js"></script>
+<script src="js/input-focus-manager.js"></script>
+<script src="js/image-gallery.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/store.js"></script>
+<script src="js/router.js"></script>
+<script src="js/ui.js"></script>
+
+<!-- Shared components -->
+<script src="js/components/layout.js"></script>
+<script src="js/components/numeric-keypad.js"></script>
+<script src="js/components/dial-pad.js"></script>
+<script src="js/components/receipt.js"></script>
+<script src="js/components/balance-adjuster.js"></script>
+<script src="js/components/banks-data.js"></script>
+<script src="js/components/bank-selector.js"></script>
+<script src="js/components/account-verifier.js"></script>
+
+<!-- Pages -->
+<script src="js/pages/login.js"></script>
+<script src="js/pages/dashboard.js"></script>
+<script src="js/pages/me.js"></script>
+<script src="js/pages/rewards.js"></script>
+<script src="js/pages/finance.js"></script>
+<script src="js/pages/cards.js"></script>
+<script src="js/pages/to-opay.js"></script>
+<script src="js/pages/to-bank.js"></script>
+<script src="js/pages/withdraw.js"></script>
+<script src="js/pages/airtime.js"></script>
+<script src="js/pages/data.js"></script>
+<script src="js/pages/betting.js"></script>
+<script src="js/pages/tv.js"></script>
+<script src="js/pages/loan.js"></script>
+<script src="js/pages/safebox.js"></script>
+<script src="js/pages/spend-save.js"></script>
+<script src="js/pages/safebox-interests.js"></script>
+<script src="js/pages/safebox-settings.js"></script>
+<script src="js/pages/transaction-history.js"></script>
+<script src="js/pages/notifications.js"></script>
+<script src="js/pages/invitation.js"></script>
+<script src="js/pages/play4achild.js"></script>
+<script src="js/pages/qr-code.js"></script>
+<script src="js/pages/help.js"></script>
+<script src="js/pages/more.js"></script>
+<script src="js/pages/customization.js"></script>
+<script src="js/pages/not-found.js"></script>
+
+<!-- App bootstrap (registers routes) -->
+<script src="js/app.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+</script>
+
+<script>
+// ── Admin Guard: block balance-adjuster & cloudinary uploads for non-admins ──
+window.__IS_ADMIN = false;
+
+// Check session on app load
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.Api) {
+    Api.getSession().then(function(data) {
+      if (data && data.is_admin) {
+        window.__IS_ADMIN = true;
+      }
+      Api.syncState().catch(function(){});
+    }).catch(function(){
+      // Offline: rely on localStorage
+    });
+  }
+});
+</script>
+
+</body>
+</html>
