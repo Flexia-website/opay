@@ -106,7 +106,7 @@ function renderMePage(container, routeState) {
             <div>
               <h2 style="font-size:1.25rem;font-weight:700;color:#111827;margin:0;">Hi, ${displayName}</h2>
               <span style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;background:${AuthState.isAdmin ? '#fce7f3' : '#fef3c7'};color:${AuthState.isAdmin ? '#be185d' : '#b45309'};font-size:0.75rem;padding:2px 8px;border-radius:9999px;">
-                ${AuthState.isAdmin ? '🔑 Admin' : 'Tier 1'}
+                ${AuthState.isAdmin ? 'Admin' : 'Tier 1'}
               </span>
             </div>
           </div>

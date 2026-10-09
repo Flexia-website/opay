@@ -57,7 +57,7 @@ function showAccountVerification(accountNumber, bankCode, onConfirm, onError) {
     <div style="background:white;border-radius:1rem;padding:2rem;width:100%;max-width:20rem;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
       <div style="text-align:center;margin-bottom:2rem;">
         <div style="display:inline-block;width:3rem;height:3rem;background:#f0fdf4;border-radius:9999px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
-          <span style="font-size:1.5rem;">⏳</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#00B875" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke="#e5e7eb"/><path d="M12 2a10 10 0 0 1 10 10" stroke="#00B875"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>
         </div>
         <p style="font-size:0.9375rem;color:#6b7280;margin:0;">Verifying account...</p>
       </div>
@@ -95,7 +95,7 @@ function showVerificationResult(account, onConfirm, onError) {
     <div style="background:white;border-radius:1rem;padding:2rem;width:100%;max-width:20rem;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
       <div style="text-align:center;margin-bottom:1.5rem;">
         <div style="display:inline-block;width:3.5rem;height:3.5rem;background:#ecfdf5;border-radius:9999px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;border:2px solid #10b981;">
-          <span style="font-size:2rem;">✓</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <h2 style="font-size:1.125rem;font-weight:700;color:#111827;margin:0;margin-bottom:0.5rem;">Account Verified</h2>
         <p style="font-size:0.875rem;color:#6b7280;margin:0;">Account details confirmed</p>
@@ -146,7 +146,7 @@ function showVerificationError(error, onError) {
     <div style="background:white;border-radius:1rem;padding:2rem;width:100%;max-width:20rem;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
       <div style="text-align:center;margin-bottom:1.5rem;">
         <div style="display:inline-block;width:3.5rem;height:3.5rem;background:#fef2f2;border-radius:9999px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;border:2px solid #ef4444;">
-          <span style="font-size:2rem;">✕</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </div>
         <h2 style="font-size:1.125rem;font-weight:700;color:#111827;margin:0;margin-bottom:0.5rem;">Verification Failed</h2>
         <p style="font-size:0.875rem;color:#6b7280;margin:0;">${error.message || error.error}</p>

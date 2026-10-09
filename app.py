@@ -622,6 +622,97 @@ def update_own_profile():
     db.session.commit()
     return jsonify({'ok': True, 'user': user.to_dict()})
 
+# ── P2P Transfer: look up a registered user by username or account number ─────
+@app.route('/api/users/lookup', methods=['GET'])
+@require_auth
+def lookup_user():
+    """Find a user by username or account number for peer-to-peer transfer."""
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({'ok': False, 'error': 'Query too short'}), 400
+
+    # Don't allow looking up yourself
+    current_id = session.get('user_id')
+
+    user = User.query.filter(
+        User.is_active == True,
+        db.or_(
+            User.username == q,
+            User.account_number == q,
+            User.phone == q
+        )
+    ).first()
+
+    if not user:
+        return jsonify({'ok': False, 'error': 'No OPay user found with that username, account number, or phone'})
+
+    if user.id == current_id:
+        return jsonify({'ok': False, 'error': 'You cannot transfer to yourself'})
+
+    return jsonify({
+        'ok': True,
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'full_name': user.full_name or user.username,
+            'account_number': user.account_number,
+            'phone': user.phone,
+        }
+    })
+
+@app.route('/api/transfer/opay', methods=['POST'])
+@require_auth
+def transfer_opay():
+    """Peer-to-peer OPay transfer between registered users."""
+    data = request.get_json() or {}
+    recipient_id = data.get('recipient_id')
+    amount = float(data.get('amount', 0))
+    note = (data.get('note') or '').strip()
+
+    if amount <= 0:
+        return jsonify({'ok': False, 'error': 'Amount must be greater than zero'}), 400
+
+    recipient = db.session.get(User, recipient_id)
+    if not recipient or not recipient.is_active:
+        return jsonify({'ok': False, 'error': 'Recipient not found'}), 404
+
+    if session.get('is_admin'):
+        # Admin sends from admin balance
+        state = get_admin_state()
+        if state.balance < amount:
+            return jsonify({'ok': False, 'error': 'Insufficient balance'}), 400
+        state.balance -= amount
+        recipient.balance += amount
+        db.session.commit()
+        sender_name = ADMIN_USERNAME.upper()
+        new_balance = state.balance
+    else:
+        sender = db.session.get(User, session['user_id'])
+        if not sender:
+            return jsonify({'ok': False, 'error': 'Sender not found'}), 404
+        if sender.id == recipient.id:
+            return jsonify({'ok': False, 'error': 'Cannot transfer to yourself'}), 400
+        if sender.balance < amount:
+            return jsonify({'ok': False, 'error': 'Insufficient balance'}), 400
+        sender.balance -= amount
+        recipient.balance += amount
+        db.session.commit()
+        sender_name = (sender.full_name or sender.username).upper()
+        new_balance = sender.balance
+
+    return jsonify({
+        'ok': True,
+        'new_balance': new_balance,
+        'amount': amount,
+        'recipient': {
+            'username': recipient.username,
+            'full_name': recipient.full_name or recipient.username,
+            'account_number': recipient.account_number,
+        },
+        'sender_name': sender_name,
+        'note': note,
+    })
+
 # ── PWA: serve index.html for all non-API routes ──────────────────────────────
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

@@ -1,261 +1,364 @@
+// ── Transfer to OPay User (P2P) ───────────────────────────────────────────────
 function renderToOpayPage(container) {
-  let recipientInput = "";
-  let recipientName = "";
-  let amount = "";
-  let showManualEntry = false;
+  let step = 'find';      // 'find' | 'amount' | 'confirm' | 'success'
+  let recipient = null;
+  let amount = 0;
+  let note = '';
 
-  function render() {
+  function getBalance() {
+    if (AuthState.isAdmin) return Stores.balance.get().balance;
+    return AuthState.balance;
+  }
+
+  function fmt(n) {
+    return '₦' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ── STEP 1: Find recipient ────────────────────────────────────────────────
+  function renderFind() {
     container.innerHTML = `
-      <div style="display:flex;flex-direction:column;min-height:100vh;">
-        <div style="padding:1rem;background:white;border-bottom:1px solid #e5e7eb;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <h1 style="font-size:1.125rem;font-weight:700;margin:0;color:#111827;">Transfer to OPay Account</h1>
-            <a href="#" style="color:#00B876;font-weight:600;font-size:0.9375rem;text-decoration:none;">History</a>
+    <div style="min-height:100vh;background:#f9fafb;">
+      <div style="background:white;padding:1rem 1.25rem;display:flex;align-items:center;gap:0.75rem;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:10;">
+        <button id="back-btn" style="background:none;border:none;cursor:pointer;color:#374151;padding:0;">${Icon('arrow-left',{size:22})}</button>
+        <h2 style="margin:0;font-size:1.05rem;font-weight:700;flex:1;">Send to OPay User</h2>
+      </div>
+
+      <div style="padding:1.5rem 1.25rem;">
+        <div style="background:#e8f5ec;border-radius:0.75rem;padding:1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:36px;height:36px;border-radius:9999px;background:#00B875;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            ${Icon('send',{size:16,color:'white'})}
+          </div>
+          <div>
+            <div style="font-weight:600;font-size:0.9rem;color:#111827;">Instant OPay Transfer</div>
+            <div style="font-size:0.75rem;color:#374151;margin-top:2px;">Send money instantly to any registered OPay user</div>
           </div>
         </div>
 
-        <div class="pb-nav-safe" style="flex:1;overflow-y:auto;">
-          <div style="padding:1rem;">
-            <!-- Promo Card -->
-            <div style="background:linear-gradient(135deg, #a0e0c4 0%, #6fd0b3 100%);border-radius:1rem;padding:1.5rem;margin-bottom:1.5rem;position:relative;overflow:hidden;">
-              <div style="position:absolute;top:-10px;right:-10px;opacity:0.2;font-size:3rem;display:flex;align-items:center;justify-content:center;color:#ffffff;">${Icon('wallet', {size: 80})}</div>
-              <div style="position:relative;z-index:1;">
-                <h2 style="font-size:1.125rem;font-weight:800;margin:0;color:#1b3a2f;margin-bottom:0.5rem;">Claim 15 Discounts with</h2>
-                <p style="font-size:2rem;font-weight:800;margin:0.5rem 0;color:#00B876;">₦99 on any Bill</p>
-                <button style="background:#00B876;color:white;border:none;padding:0.75rem 1.5rem;border-radius:9999px;font-weight:600;font-size:0.875rem;cursor:pointer;margin-top:1rem;">Claim</button>
+        <div style="background:white;border-radius:1rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:0.5rem;">Username, Account Number or Phone</label>
+          <div style="display:flex;gap:0.5rem;">
+            <input id="recipient-input" type="text"
+              placeholder="e.g. john123 or 08012345678"
+              class="input"
+              style="flex:1;"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="none"
+              spellcheck="false"
+              inputmode="text" />
+            <button id="search-btn" style="padding:0 1rem;background:#00B875;color:white;border:none;border-radius:0.6rem;font-weight:600;cursor:pointer;white-space:nowrap;font-size:0.85rem;">Search</button>
+          </div>
+          <div id="search-err" style="color:#ef4444;font-size:0.8rem;margin-top:0.5rem;min-height:1.2em;"></div>
+          <div id="search-result" style="margin-top:0.75rem;"></div>
+        </div>
+
+        <div style="margin-top:1.5rem;">
+          <div style="font-size:0.8rem;font-weight:600;color:#6b7280;letter-spacing:0.05em;margin-bottom:0.75rem;">HOW IT WORKS</div>
+          <div style="display:flex;flex-direction:column;gap:0.75rem;">
+            ${[
+              ['search', 'Find by username, account number, or phone'],
+              ['check-circle', 'Confirm the recipient details'],
+              ['send', 'Enter amount and send instantly'],
+            ].map(([icon, text]) => `
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <div style="width:32px;height:32px;border-radius:9999px;background:#d1fae5;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                ${Icon(icon, {size:15,color:'#059669'})}
               </div>
-            </div>
-
-            <!-- Info Banner -->
-            <div style="background:#e0f2fe;border-radius:0.75rem;padding:1rem;margin-bottom:1.5rem;display:flex;gap:0.75rem;align-items:center;">
-              <span style="display:flex;align-items:center;justify-content:center;color:#0369a1;">${Icon('star', {size: 18})}</span>
-              <p style="font-size:0.875rem;color:#0369a1;font-weight:600;margin:0;">Instant, Zero Issues, Free</p>
-            </div>
-
-            <!-- Recipient Section -->
-            <div style="margin-bottom:1.5rem;">
-              <h3 style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0 0 1rem;">Recipient Account</h3>
-              
-              <div style="position:relative;margin-bottom:1rem;">
-                <input id="recipient-input" type="text" placeholder="Phone No./OPay Account No./Name" value="${recipientInput}" style="width:100%;padding:0.875rem 2.75rem 0.875rem 0.875rem;border:1px solid #e5e7eb;border-radius:0.75rem;font-size:0.9375rem;font-family:inherit;" />
-                <button id="scan-btn" style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#6b7280;cursor:pointer;display:flex;align-items:center;justify-content:center;">${Icon('smartphone', {size: 18})}</button>
-              </div>
-
-              ${recipientInput && !showManualEntry ? `
-                <div style="margin-bottom:1rem;">
-                  <input id="recipient-name" type="text" placeholder="Recipient Name (Optional)" value="${recipientName}" style="width:100%;padding:0.875rem;border:1px solid #e5e7eb;border-radius:0.75rem;font-size:0.9375rem;font-family:inherit;margin-bottom:0.75rem;" />
-                  <div style="margin-bottom:0.75rem;">
-                    <label style="font-size:0.8125rem;color:#6b7280;display:block;margin-bottom:0.5rem;">Amount</label>
-                    <input id="amount-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Enter amount" value="${amount}" style="width:100%;padding:0.875rem;border:1px solid #e5e7eb;border-radius:0.75rem;font-size:0.9375rem;font-family:inherit;" />
-                  </div>
-                  <button id="proceed-btn" style="width:100%;background:#00B876;color:white;border:none;padding:0.75rem 1.5rem;border-radius:0.75rem;font-weight:600;font-size:0.9375rem;cursor:pointer;">Proceed</button>
-                </div>
-              ` : ''}
-
-              <a href="#" style="color:#00B876;font-size:0.875rem;font-weight:600;text-decoration:none;">Don't know the recipient's OPay account number? Ask them ></a>
-            </div>
-
-            <!-- Recents/Favourites -->
-            <div>
-              <div style="display:flex;gap:2rem;margin-bottom:1rem;border-bottom:1px solid #e5e7eb;">
-                <button style="padding:0.75rem 0;background:none;border:none;border-bottom:2px solid #00B876;color:#111827;font-weight:700;font-size:0.9375rem;cursor:pointer;">Recents</button>
-                <button style="padding:0.75rem 0;background:none;border:none;color:#6b7280;font-weight:500;font-size:0.9375rem;cursor:pointer;">Favourites</button>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:1rem;padding:1rem 0;border-bottom:1px solid #f3f4f6;cursor:pointer;">
-                <div style="width:2.75rem;height:2.75rem;border-radius:9999px;background:linear-gradient(135deg, #3b82f6, #1e40af);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:0.875rem;">O</div>
-                <div style="flex:1;">
-                  <p style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0;">OKECHUKWU PETER ONUMA</p>
-                  <p style="font-size:0.8125rem;color:#6b7280;margin:0.25rem 0 0;">812 536 8056</p>
-                </div>
-                <span style="background:#e0f2fe;color:#0369a1;padding:0.25rem 0.75rem;border-radius:0.5rem;font-size:0.75rem;font-weight:600;margin-left:auto;">BizPayment</span>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:1rem;padding:1rem 0;border-bottom:1px solid #f3f4f6;cursor:pointer;">
-                <div style="width:2.75rem;height:2.75rem;border-radius:9999px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;color:#6b7280;">${Icon('user', {size: 18})}</div>
-                <div style="flex:1;">
-                  <p style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0;">LEDESI VICTOR</p>
-                  <p style="font-size:0.8125rem;color:#6b7280;margin:0.25rem 0 0;">808 374 6522</p>
-                </div>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:1rem;padding:1rem 0;cursor:pointer;">
-                <div style="width:2.75rem;height:2.75rem;border-radius:9999px;background:linear-gradient(135deg, #06b6d4, #0891b2);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:0.875rem;">O</div>
-                <div style="flex:1;">
-                  <p style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0;">ONYEKACHI GODDAY UGOCHUKWU</p>
-                  <p style="font-size:0.8125rem;color:#6b7280;margin:0.25rem 0 0;">610 727 2666</p>
-                </div>
-                <span style="background:#e0f2fe;color:#0369a1;padding:0.25rem 0.75rem;border-radius:0.5rem;font-size:0.75rem;font-weight:600;">BizPayment</span>
-              </div>
-
-              <p style="text-align:center;color:#6b7280;font-size:0.875rem;margin:1.5rem 0 0;cursor:pointer;padding:1rem;">View All ›</p>
-            </div>
-
-            <!-- See who else is using OPay -->
-            <div style="background:white;border:1px solid #e5e7eb;border-radius:0.75rem;padding:1rem;margin-top:1.5rem;display:flex;align-items:center;gap:0.75rem;cursor:pointer;">
-              <span style="font-size:1.5rem;">👥</span>
-              <div style="flex:1;">
-                <p style="font-size:0.9375rem;font-weight:600;color:#111827;margin:0;">See who else is using OPay</p>
-                <p style="font-size:0.75rem;color:#6b7280;margin:0.25rem 0 0;">Send money to your contacts for free</p>
-              </div>
-              <span style="color:#00B876;">›</span>
-            </div>
-
-            <!-- More Events -->
-            <h3 style="font-size:0.9375rem;font-weight:700;color:#111827;margin:1.5rem 0 1rem;">More Events</h3>
+              <span style="font-size:0.875rem;color:#374151;">${text}</span>
+            </div>`).join('')}
           </div>
         </div>
       </div>
-    `;
+    </div>`;
 
-    // Event listeners
-    const recipientInp = container.querySelector('#recipient-input');
-    const recipientNameInp = container.querySelector('#recipient-name');
-    const proceedBtn = container.querySelector('#proceed-btn');
-    const scanBtn = container.querySelector('#scan-btn');
+    container.querySelector('#back-btn').addEventListener('click', () => navigate('/dashboard'));
 
-    if (recipientInp) {
-      recipientInp.addEventListener('input', (e) => {
-        recipientInput = e.target.value;
-        render();
-      });
-    }
+    const input = container.querySelector('#recipient-input');
+    const searchBtn = container.querySelector('#search-btn');
+    const errEl = container.querySelector('#search-err');
+    const resultEl = container.querySelector('#search-result');
 
-    if (recipientNameInp) {
-      recipientNameInp.addEventListener('input', (e) => {
-        recipientName = e.target.value;
-      });
-    }
+    // Search on Enter key — does NOT blur the input first
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doSearch();
+    });
 
-    const amountInp = container.querySelector('#amount-input');
-    if (amountInp) {
-      amountInp.addEventListener('input', (e) => {
-        amount = e.target.value;
-      });
-    }
+    searchBtn.addEventListener('click', () => doSearch());
 
-    if (proceedBtn) {
-      proceedBtn.addEventListener('click', () => {
-        if (!recipientInput) {
-          alert('Please enter recipient account or phone number');
-          return;
-        }
-        if (!amount) {
-          alert('Please enter amount');
-          return;
-        }
-        showPaymentModal(recipientInput, recipientName, amount);
-      });
-    }
+    async function doSearch() {
+      const q = input.value.trim();
+      errEl.textContent = '';
+      resultEl.innerHTML = '';
+      if (!q) { errEl.textContent = 'Enter a username, account number, or phone'; return; }
 
-    if (scanBtn) {
-      scanBtn.addEventListener('click', () => {
-        alert('Scan QR or contact feature coming soon');
-      });
-    }
-  }
+      searchBtn.textContent = 'Searching...';
+      searchBtn.disabled = true;
 
-  function showPaymentModal(recipient, name, amt) {
-    // Show confirmation page instead of payment method modal
-    showOpayConfirmation(recipient, name, amt);
-  }
+      try {
+        const res = await fetch(`/api/users/lookup?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+        const data = await res.json();
+        searchBtn.textContent = 'Search';
+        searchBtn.disabled = false;
 
-  function showOpayConfirmation(recipient, name, amt) {
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#f9fafb;display:flex;flex-direction:column;z-index:1000;overflow-y:auto;';
-    
-    modal.innerHTML = `
-      <header style="background:white;padding:0.875rem 1rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e7eb;">
-        <div style="display:flex;align-items:center;gap:0.75rem;">
-          <button id="back-btn-confirm" style="background:none;border:none;color:#111827;cursor:pointer;display:flex;align-items:center;justify-content:center;">${Icon('chevron-left', {size: 20})}</button>
-          <h1 style="font-size:1.0625rem;font-weight:700;margin:0;color:#111827;">Confirm Transfer</h1>
-        </div>
-        <span style="color:#00B876;">${Icon('user', {size: 20})}</span>
-      </header>
-
-      <div style="flex:1;overflow-y:auto;">
-        <div style="position:relative;margin:0 1rem;margin-top:-2rem;padding-bottom:1rem;">
-          <div style="margin:0;overflow:visible;padding:0;position:relative;z-index:1;background:white;border-radius:0.75rem;padding:1rem;text-align:center;">
-            <div style="width:3.25rem;height:3.25rem;border-radius:9999px;background:linear-gradient(135deg, #3b82f6, #1e40af);display:flex;align-items:center;justify-content:center;margin:0 auto 0.75rem;color:white;font-weight:700;font-size:0.875rem;">
-              ${(name || recipient).charAt(0).toUpperCase()}
+        if (data.ok) {
+          const u = data.user;
+          resultEl.innerHTML = `
+          <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:0.75rem;padding:1rem;">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+              <div style="width:44px;height:44px;border-radius:9999px;background:#00B875;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                ${Icon('user',{size:22,color:'white'})}
+              </div>
+              <div>
+                <div style="font-weight:700;color:#111827;">${u.full_name}</div>
+                <div style="font-size:0.75rem;color:#6b7280;">@${u.username}</div>
+                ${u.account_number ? `<div style="font-size:0.75rem;color:#6b7280;margin-top:1px;">Acct: ${u.account_number}</div>` : ''}
+              </div>
+              <div style="margin-left:auto;">${Icon('check-circle',{size:20,color:'#059669'})}</div>
             </div>
-            <p style="font-size:0.9375rem;color:#111827;margin:0 0 0.75rem;font-weight:600;">${name || recipient}</p>
-            <div style="font-size:1.875rem;font-weight:800;color:#111827;margin-bottom:0.5rem;letter-spacing:-0.01em;">₦${formatMoney(amt)}</div>
-            <p style="font-size:0.75rem;color:#6b7280;margin:0;">OPay Transfer</p>
-          </div>
-        </div>
+            <button id="select-recipient" style="width:100%;padding:0.7rem;background:#00B875;color:white;border:none;border-radius:0.6rem;font-weight:700;font-size:0.9rem;cursor:pointer;">Continue to Amount</button>
+          </div>`;
 
-        <div style="margin:1rem;padding:1.25rem;background:white;border-radius:0.75rem;border:1px solid #e5e7eb;">
-          <h3 style="font-size:1rem;font-weight:700;margin:0 0 1rem;color:#111827;">Transfer Details</h3>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.875rem 0;border-bottom:1px solid #f3f4f6;">
-            <div style="color:#6b7280;font-size:0.8125rem;font-weight:500;">Recipient</div>
-            <div style="text-align:right;font-weight:700;font-size:0.875rem;color:#111827;">${name || recipient}</div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.875rem 0;">
-            <div style="color:#6b7280;font-size:0.8125rem;font-weight:500;">Amount</div>
-            <div style="text-align:right;font-weight:700;font-size:0.875rem;color:#111827;">₦${formatMoney(amt)}</div>
-          </div>
-        </div>
-
-        <div style="margin:1rem;padding:1rem;background:#dbeafe;border-radius:0.75rem;border-left:4px solid #0369a1;">
-          <p style="font-size:0.8125rem;color:#082f49;margin:0;font-weight:500;">Instant transfer to OPay account. Zero fees, instant delivery.</p>
-        </div>
-      </div>
-
-      <div style="padding:1rem;background:white;border-top:1px solid #e5e7eb;display:flex;gap:0.75rem;">
-        <button id="cancel-confirm" style="flex:1;padding:1rem;background:#f3f4f6;color:#111827;border:none;border-radius:0.75rem;font-weight:700;cursor:pointer;">Cancel</button>
-        <button id="proceed-pin" style="flex:1;padding:1rem;background:#00B876;color:white;border:none;border-radius:0.75rem;font-weight:700;cursor:pointer;">Continue to PIN</button>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    document.getElementById('back-btn-confirm').addEventListener('click', () => modal.remove());
-    document.getElementById('cancel-confirm').addEventListener('click', () => modal.remove());
-    
-    document.getElementById('proceed-pin').addEventListener('click', () => {
-      modal.remove();
-      showPinModal({
-        amount: amt,
-        recipientLabel: `${name || recipient}`,
-        onConfirm: () => {
-          showTransactionSuccess(recipient, name, amt);
+          resultEl.querySelector('#select-recipient').addEventListener('click', () => {
+            recipient = u;
+            step = 'amount';
+            renderAmount();
+          });
+        } else {
+          errEl.textContent = data.error || 'User not found';
         }
+      } catch (e) {
+        searchBtn.textContent = 'Search';
+        searchBtn.disabled = false;
+        errEl.textContent = 'Network error. Please try again.';
+      }
+    }
+  }
+
+  // ── STEP 2: Enter amount ─────────────────────────────────────────────────
+  function renderAmount() {
+    const balance = getBalance();
+    container.innerHTML = `
+    <div style="min-height:100vh;background:#f9fafb;">
+      <div style="background:white;padding:1rem 1.25rem;display:flex;align-items:center;gap:0.75rem;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:10;">
+        <button id="back-btn" style="background:none;border:none;cursor:pointer;color:#374151;padding:0;">${Icon('arrow-left',{size:22})}</button>
+        <h2 style="margin:0;font-size:1.05rem;font-weight:700;flex:1;">Enter Amount</h2>
+      </div>
+
+      <div style="padding:1.5rem 1.25rem;">
+        <!-- Recipient summary -->
+        <div style="background:white;border-radius:0.75rem;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:1.25rem;display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:40px;height:40px;border-radius:9999px;background:#00B875;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            ${Icon('user',{size:18,color:'white'})}
+          </div>
+          <div>
+            <div style="font-weight:700;color:#111827;font-size:0.9rem;">${recipient.full_name}</div>
+            <div style="font-size:0.75rem;color:#6b7280;">@${recipient.username}</div>
+          </div>
+          <button id="change-recipient" style="margin-left:auto;background:none;border:none;color:#00B875;font-weight:600;font-size:0.8rem;cursor:pointer;padding:0;">Change</button>
+        </div>
+
+        <!-- Amount input -->
+        <div style="background:white;border-radius:1rem;padding:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-align:center;margin-bottom:1rem;">
+          <div style="font-size:0.8rem;color:#6b7280;margin-bottom:0.5rem;">Amount to Send</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:0.25rem;">
+            <span style="font-size:2rem;font-weight:700;color:#9ca3af;">₦</span>
+            <input id="amount-input" type="text"
+              placeholder="0.00"
+              class="input"
+              style="border:none;outline:none;font-size:2.5rem;font-weight:800;color:#111827;text-align:center;width:100%;padding:0;background:transparent;"
+              readonly
+              inputmode="none" />
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.8rem;color:#6b7280;">Balance: <strong style="color:#059669;">${fmt(balance)}</strong></div>
+          <div id="amount-err" style="color:#ef4444;font-size:0.8rem;margin-top:0.4rem;min-height:1.2em;"></div>
+        </div>
+
+        <!-- Note field -->
+        <div style="background:white;border-radius:0.75rem;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:1rem;">
+          <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:0.4rem;">Note (optional)</label>
+          <input id="note-input" type="text"
+            placeholder="What is this for?"
+            class="input"
+            style="font-size:0.9rem;"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+            maxlength="100" />
+        </div>
+
+        <!-- Quick amounts -->
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+          ${[500,1000,2000,5000,10000].map(v => `
+          <button class="quick-amt" data-val="${v}" style="padding:0.4rem 0.75rem;border-radius:9999px;border:1.5px solid #d1d5db;background:white;font-size:0.8rem;font-weight:600;cursor:pointer;color:#374151;">₦${v.toLocaleString()}</button>`).join('')}
+        </div>
+
+        <button id="proceed-btn" style="width:100%;padding:0.85rem;background:#00B875;color:white;border:none;border-radius:0.6rem;font-weight:700;font-size:0.95rem;cursor:pointer;">Continue</button>
+      </div>
+    </div>`;
+
+    container.querySelector('#back-btn').addEventListener('click', () => { step = 'find'; renderFind(); });
+    container.querySelector('#change-recipient').addEventListener('click', () => { step = 'find'; renderFind(); });
+
+    // Attach sliding keypad to amount input
+    const amountInput = container.querySelector('#amount-input');
+    attachAmountKeypad(amountInput, { decimal: true });
+
+    // Quick amount buttons
+    container.querySelectorAll('.quick-amt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        amountInput.value = btn.dataset.val;
+        amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+        container.querySelectorAll('.quick-amt').forEach(b => {
+          b.style.background = b === btn ? '#00B875' : 'white';
+          b.style.color = b === btn ? 'white' : '#374151';
+          b.style.borderColor = b === btn ? '#00B875' : '#d1d5db';
+        });
       });
     });
-  }
 
-
-
-  function showTransactionSuccess(recipient, name, amt) {
-    const txId = Date.now().toString().slice(-12);
-    const sessionId = 'sess_' + Math.random().toString(36).substr(2, 9).toUpperCase();
-    Stores.transaction.addTransaction({
-      type: `Transfer to ${name || recipient}`,
-      amount: `-₦${formatMoney(amt)}`,
-      status: 'Successful',
-      icon: 'send'
-    });
-    Stores.balance.set(s => ({ balance: s.balance - parseFloat(amt) }));
-    showTransactionReceipt({
-      title: `Transfer to ${name || recipient}`,
-      amount: `-₦${formatMoney(amt)}`,
-      success: true,
-      date: new Date().toLocaleString(),
-      details: [
-        { label: 'Recipient Details', value: name || recipient },
-        { label: 'Transaction No.', value: txId },
-        { label: 'Transaction Type', value: 'OPay Transfer' },
-        { label: 'Payment Method', value: 'OWealth' },
-        { label: 'Transaction Date', value: new Date().toLocaleString() },
-        { label: 'Session ID', value: sessionId }
-      ],
-      variant: 'tracker',
-      onClose: () => navigate('/dashboard')
+    container.querySelector('#proceed-btn').addEventListener('click', () => {
+      const errEl = container.querySelector('#amount-err');
+      const val = parseFloat(amountInput.value.replace(/,/g, '') || '0');
+      note = container.querySelector('#note-input').value.trim();
+      errEl.textContent = '';
+      if (!val || val <= 0) { errEl.textContent = 'Enter an amount'; return; }
+      if (val > balance) { errEl.textContent = 'Insufficient balance'; return; }
+      if (val < 1) { errEl.textContent = 'Minimum transfer is ₦1'; return; }
+      amount = val;
+      step = 'confirm';
+      renderConfirm();
     });
   }
 
-  render();
+  // ── STEP 3: Confirm ──────────────────────────────────────────────────────
+  function renderConfirm() {
+    container.innerHTML = `
+    <div style="min-height:100vh;background:#f9fafb;">
+      <div style="background:white;padding:1rem 1.25rem;display:flex;align-items:center;gap:0.75rem;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:10;">
+        <button id="back-btn" style="background:none;border:none;cursor:pointer;color:#374151;padding:0;">${Icon('arrow-left',{size:22})}</button>
+        <h2 style="margin:0;font-size:1.05rem;font-weight:700;flex:1;">Confirm Transfer</h2>
+      </div>
+
+      <div style="padding:1.5rem 1.25rem;">
+        <div style="background:white;border-radius:1rem;padding:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:1.25rem;">
+          <div style="text-align:center;margin-bottom:1.5rem;">
+            <div style="font-size:2.5rem;font-weight:800;color:#111827;">${fmt(amount)}</div>
+            <div style="font-size:0.85rem;color:#6b7280;margin-top:4px;">to ${recipient.full_name}</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:0.6rem;">
+            ${[
+              ['Recipient', recipient.full_name],
+              ['Username', '@' + recipient.username],
+              ['Account', recipient.account_number || 'OPay Account'],
+              ['Amount', fmt(amount)],
+              ['Fee', 'Free'],
+              ...(note ? [['Note', note]] : []),
+            ].map(([label, value]) => `
+            <div style="display:flex;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid #f3f4f6;font-size:0.875rem;">
+              <span style="color:#6b7280;">${label}</span>
+              <span style="font-weight:600;color:#111827;">${value}</span>
+            </div>`).join('')}
+          </div>
+        </div>
+
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:0.75rem;padding:0.875rem;margin-bottom:1.25rem;font-size:0.8rem;color:#92400e;display:flex;gap:0.5rem;align-items:flex-start;">
+          ${Icon('alert-triangle',{size:16,color:'#d97706'})}
+          <span>Please confirm all details. OPay transfers are instant and cannot be reversed.</span>
+        </div>
+
+        <button id="confirm-btn" style="width:100%;padding:0.85rem;background:#00B875;color:white;border:none;border-radius:0.6rem;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:0.75rem;">Send ${fmt(amount)}</button>
+        <button id="cancel-btn" style="width:100%;padding:0.85rem;background:white;color:#374151;border:1.5px solid #d1d5db;border-radius:0.6rem;font-weight:600;font-size:0.9rem;cursor:pointer;">Cancel</button>
+      </div>
+    </div>`;
+
+    container.querySelector('#back-btn').addEventListener('click', () => { step = 'amount'; renderAmount(); });
+    container.querySelector('#cancel-btn').addEventListener('click', () => navigate('/dashboard'));
+
+    container.querySelector('#confirm-btn').addEventListener('click', async () => {
+      const btn = container.querySelector('#confirm-btn');
+      btn.textContent = 'Sending...'; btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/transfer/opay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            recipient_id: recipient.id,
+            amount,
+            note,
+          })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          // Update local balance
+          if (AuthState.isAdmin) {
+            Stores.balance.set({ balance: data.new_balance });
+          } else {
+            AuthState.balance = data.new_balance;
+            Stores.balance.set({ balance: data.new_balance });
+          }
+          // Add transaction to history
+          transactionStore.addTransaction({
+            type: `Transfer to ${recipient.full_name}`,
+            amount: `-${fmt(amount)}`,
+            status: 'Successful',
+            icon: 'send',
+          });
+          step = 'success';
+          renderSuccess(data);
+        } else {
+          toast.error(data.error || 'Transfer failed');
+          btn.textContent = `Send ${fmt(amount)}`; btn.disabled = false;
+        }
+      } catch (e) {
+        toast.error('Network error. Please try again.');
+        btn.textContent = `Send ${fmt(amount)}`; btn.disabled = false;
+      }
+    });
+  }
+
+  // ── STEP 4: Success ──────────────────────────────────────────────────────
+  function renderSuccess(data) {
+    container.innerHTML = `
+    <div style="min-height:100vh;background:#f9fafb;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;">
+      <div style="width:100%;max-width:20rem;text-align:center;">
+        <div style="width:80px;height:80px;border-radius:9999px;background:#d1fae5;border:3px solid #34d399;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;">
+          ${Icon('check',{size:40,color:'#059669'})}
+        </div>
+        <h2 style="font-size:1.5rem;font-weight:800;color:#111827;margin:0 0 0.5rem;">Transfer Successful</h2>
+        <p style="color:#6b7280;font-size:0.9rem;margin:0 0 2rem;">Your transfer has been sent successfully.</p>
+
+        <div style="background:white;border-radius:1rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);text-align:left;margin-bottom:1.5rem;">
+          <div style="font-size:2rem;font-weight:800;color:#059669;text-align:center;margin-bottom:1rem;">${fmt(amount)}</div>
+          ${[
+            ['Sent to', data.recipient.full_name],
+            ['Account', data.recipient.account_number || 'OPay Account'],
+            ['Status', 'Successful'],
+            ['New Balance', fmt(data.new_balance)],
+            ...(note ? [['Note', note]] : []),
+          ].map(([label, value]) => `
+          <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #f3f4f6;font-size:0.875rem;">
+            <span style="color:#6b7280;">${label}</span>
+            <span style="font-weight:600;color:${label === 'Status' ? '#059669' : '#111827'};">${value}</span>
+          </div>`).join('')}
+        </div>
+
+        <button id="home-btn" style="width:100%;padding:0.85rem;background:#00B875;color:white;border:none;border-radius:0.6rem;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:0.75rem;">Back to Home</button>
+        <button id="send-again-btn" style="width:100%;padding:0.85rem;background:white;color:#00B875;border:1.5px solid #00B875;border-radius:0.6rem;font-weight:600;font-size:0.9rem;cursor:pointer;">Send to Another User</button>
+      </div>
+    </div>`;
+
+    container.querySelector('#home-btn').addEventListener('click', () => navigate('/dashboard'));
+    container.querySelector('#send-again-btn').addEventListener('click', () => {
+      step = 'find'; recipient = null; amount = 0; note = '';
+      renderFind();
+    });
+  }
+
+  // Start
+  renderFind();
 }
 
 window.renderToOpayPage = renderToOpayPage;
