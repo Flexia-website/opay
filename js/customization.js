@@ -77,6 +77,19 @@ function renderCustomizationPage(container) {
     { key: "svc-refer-earn", label: "Refer & Earn", description: "Refer & Earn tile on the All Service page", section: "All Service — Rewards" },
     { key: "svc-physical-card", label: "Physical Card", description: "Physical Card tile on the All Service page", section: "All Service — Others" },
     { key: "svc-virtual-card", label: "Virtual Card", description: "Virtual Card tile on the All Service page", section: "All Service — Others" },
+    // Me tab
+    { key: "meShieldImage", label: "Me Tab Shield/Badge", description: "Shield badge shown top-right on the Me page header", section: "Me Page" },
+    { key: "meIconImages_txhistory", label: "Transaction History Icon", description: "Row icon on Me page", section: "Me Page" },
+    { key: "meIconImages_limits", label: "Account Limits Icon", description: "Row icon on Me page", section: "Me Page" },
+    { key: "meIconImages_bankcard", label: "Bank Card/Account Icon", description: "Row icon on Me page", section: "Me Page" },
+    { key: "meIconImages_bizpayment", label: "My BizPayment Icon", description: "Row icon on Me page", section: "Me Page" },
+    { key: "meIconImages_security", label: "Security Center Icon", description: "Row icon on Me page", section: "Me Page" },
+    { key: "meIconImages_invitation", label: "Invitation Icon", description: "Row icon on Me page", section: "Me Page" },
+    // Cards
+    { key: "cardImg_classic_virtual", label: "Classic Virtual Card Image", description: "Background image for OPay Verve Classic virtual card", section: "Card Images" },
+    { key: "cardImg_youth_virtual", label: "Youth Virtual Card Image", description: "Background image for OPay Verve Youth virtual card", section: "Card Images" },
+    { key: "cardImg_wealth_virtual", label: "Wealth Virtual Card Image", description: "Background image for OPay Verve Wealth virtual card", section: "Card Images" },
+    { key: "cardImg_classic_physical", label: "Classic Physical Card Image", description: "Background image for OPay Verve Classic physical card", section: "Card Images" },
   ];
 
   // Helper function to convert hex to RGB
@@ -249,7 +262,9 @@ function renderCustomizationPage(container) {
                 <h3 style="font-weight:600;margin:0 0 1rem;">${section}</h3>
                 ${items
                   .map((b) => {
-                    const currentImage = b.key === "profile" ? profilePhoto : buttonImages[b.key];
+                    const _flatKeys = ['meShieldImage','cardImg_classic_virtual','cardImg_youth_virtual','cardImg_wealth_virtual','cardImg_classic_physical'];
+                    const _isFlatKey = _flatKeys.includes(b.key) || b.key.startsWith('meIconImages_');
+                    const currentImage = b.key === "profile" ? profilePhoto : _isFlatKey ? (Stores.customization.get()[b.key]||'') : buttonImages[b.key];
                     return `
                   <div style="margin-bottom:1rem;">
                     <div class="flex justify-between items-center" style="margin-bottom:0.5rem;">
@@ -501,9 +516,14 @@ function renderCustomizationPage(container) {
         reader.onload = (evt) => {
           const url = evt.target.result;
           const key = input.dataset.upload;
+          const flatKeys = ['meShieldImage', 'cardImg_classic_virtual', 'cardImg_youth_virtual', 'cardImg_wealth_virtual', 'cardImg_classic_physical'];
+          const isFlatKey = flatKeys.includes(key) || key.startsWith('meIconImages_');
           if (key === "profile") {
             Stores.customization.set({ profilePhoto: url });
             toast.success("Profile photo updated successfully");
+          } else if (isFlatKey) {
+            Stores.customization.set({ [key]: url });
+            toast.success(`${key} image updated`);
           } else {
             Stores.customization.setButtonImage(key, url);
             toast.success(`${key} image updated successfully`);

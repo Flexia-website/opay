@@ -1,5 +1,4 @@
-// ---- Minimal hash router (replaces react-router-dom for a static, no-build app) ----
-// Routes are registered as { path: renderFn }. renderFn(container, params) must render into container.
+// ---- Minimal hash router ----
 const Router = (() => {
   const routes = [];
   let notFoundHandler = null;
@@ -7,7 +6,6 @@ const Router = (() => {
   const root = () => document.getElementById("root");
 
   function register(path, handler) {
-    // convert "/safebox/deposit" style paths (no params in this app) to exact match
     routes.push({ path, handler });
   }
 
@@ -18,7 +16,7 @@ const Router = (() => {
   function navigate(path, state) {
     pendingState = state || null;
     if (location.hash.slice(1) === path) {
-      render(); // force re-render even if same path
+      render();
     } else {
       location.hash = path;
     }
@@ -32,6 +30,7 @@ const Router = (() => {
   function render() {
     const path = currentPath();
     const container = root();
+    if (!container) return;
     container.innerHTML = "";
     window.scrollTo(0, 0);
 
@@ -48,11 +47,11 @@ const Router = (() => {
     }
   }
 
+  // hashchange fires when user navigates via hash; app.js manually calls render() on boot
   window.addEventListener("hashchange", render);
-  window.addEventListener("DOMContentLoaded", render);
 
   return { register, setNotFound, navigate, currentPath, render };
 })();
 
 window.Router = Router;
-window.navigate = Router.navigate; // convenience global, mirrors useNavigate()
+window.navigate = Router.navigate;

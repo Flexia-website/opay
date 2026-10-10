@@ -632,52 +632,212 @@ function showTransferProgress() {
   return () => overlay.remove();
 }
 
-function showConfirmationModal({ title, amount, details = [], onConfirm, onCancel, icon = "check-circle" }) {
+/*
+ * showConfirmationModal — OPay-style bottom sheet (matches screenshot).
+ *
+ * opts:
+ *   amount        {number|string}  raw numeric amount, e.g. 200
+ *   productName   {string}         e.g. "Airtime"
+ *   productIcon   {string}         network id ("mtn","airtel","glo","t2mobile") or null
+ *   recipientMobile {string}
+ *   cashbackAmount  {number}        cashback earned (shown as "+₦X Cashback" pill)
+ *   useCashback     {boolean}       initial toggle state
+ *   availableCashback {number}      user's current cashback balance
+ *   balance         {number}        user's main balance
+ *   onConfirm       {fn(useCashback)}
+ *   onCancel        {fn}
+ *
+ * Legacy path: if productName is undefined but details[] is provided,
+ * falls back to the old details-list layout so non-airtime pages still work.
+ */
+function showConfirmationModal(opts) {
+  opts = opts || {};
   const primaryColor = Stores.customization.get().primaryColor;
+
+  // ── Legacy fallback for pages that pass {title, amount, details, onConfirm} ──
+  const isLegacy = (opts.productName === undefined && Array.isArray(opts.details));
+  if (isLegacy) {
+    const { title, amount, details = [], onConfirm, onCancel } = opts;
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+    overlay.style.cssText = "display:flex;align-items:flex-end;justify-content:center;z-index:1000;";
+    const detailsHtml = details.map(d => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:0.875rem;color:#6b7280;">${d.label}</span>
+        <span style="font-size:0.875rem;font-weight:600;color:#111827;">${d.value}</span>
+      </div>`).join("");
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:1.25rem 1.25rem 0 0;padding:1.5rem;width:100%;max-width:420px;box-shadow:0 -4px 24px rgba(0,0,0,0.12);transform:translateY(100%);transition:transform 0.28s cubic-bezier(.22,.8,.28,1);">
+        <button id="cc-x" style="background:none;border:none;cursor:pointer;padding:0;color:#9ca3af;font-size:1.25rem;margin-bottom:0.5rem;">✕</button>
+        <div style="font-size:1.75rem;font-weight:800;color:#111827;text-align:center;margin-bottom:1rem;">₦${formatMoney(amount)}</div>
+        <div style="margin-bottom:1.25rem;">${detailsHtml}</div>
+        <button id="cc-pay" style="width:100%;background:${primaryColor};color:white;border:none;border-radius:9999px;padding:1rem;font-weight:700;font-size:1rem;cursor:pointer;">Pay</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => { overlay.querySelector("div").style.transform = "translateY(0)"; });
+    const close = (cb) => {
+      overlay.querySelector("div").style.transform = "translateY(100%)";
+      setTimeout(() => { overlay.remove(); if (cb) cb(); }, 280);
+    };
+    overlay.querySelector("#cc-x").addEventListener("click", () => close(onCancel));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(onCancel); });
+    overlay.querySelector("#cc-pay").addEventListener("click", () => close(onConfirm));
+    return;
+  }
+
+  // ── OPay-style payment sheet ──────────────────────────────────────────────
+  const {
+    amount,
+    productName = "Payment",
+    productIcon = null,   // network id string
+    recipientMobile = "",
+    cashbackAmount = 0,   // to be earned
+    useCashback: initUseCashback = false,
+    availableCashback = 0,
+    balance = 0,
+    onConfirm,
+    onCancel,
+  } = opts;
+
+  const amtNum = parseFloat(String(amount).replace(/,/g,"")) || 0;
+  let useCashback = initUseCashback;
+
+  // Network SVG logos inline
+  const networkSVGs = {
+    mtn: `<svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#FFCB05"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="9" font-weight="900" fill="#111" font-family="Arial">MTN</text></svg>`,
+    airtel: `<svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#FF0000"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="900" fill="white" font-family="Arial">airtel</text></svg>`,
+    glo: `<svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#00A651"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="10" font-weight="900" fill="white" font-family="Arial">glo</text></svg>`,
+    t2mobile: `<svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#fff3e0"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="900" fill="#F97316" font-family="Arial">T2</text></svg>`,
+  };
+
+  function cashbackDeduction() {
+    return useCashback ? Math.min(availableCashback, amtNum) : 0;
+  }
+  function payFromBalance() {
+    return amtNum - cashbackDeduction();
+  }
+
+  function buildSheet() {
+    const logoHtml = productIcon && networkSVGs[productIcon]
+      ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:9999px;overflow:hidden;margin-right:6px;vertical-align:middle;">${networkSVGs[productIcon]}</span>`
+      : "";
+    const deduction = cashbackDeduction();
+    const fromBal = payFromBalance();
+
+    return `
+    <div id="paysheet-inner" style="background:white;border-radius:1.25rem 1.25rem 0 0;padding:1.5rem 1.25rem 2rem;width:100%;max-width:420px;box-shadow:0 -4px 24px rgba(0,0,0,0.14);transform:translateY(100%);transition:transform 0.28s cubic-bezier(.22,.8,.28,1);">
+      <button id="ps-close" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:1.125rem;padding:0;margin-bottom:0.75rem;">✕</button>
+
+      <p style="font-size:2rem;font-weight:800;color:#111827;margin:0 0 1.25rem;text-align:center;">₦${Number(amtNum).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p>
+
+      <!-- Product Name -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:0.875rem;color:#9ca3af;">Product Name</span>
+        <span style="font-size:0.875rem;font-weight:600;color:#111827;display:flex;align-items:center;">${logoHtml}${productName}</span>
+      </div>
+
+      <!-- Recipient Mobile -->
+      ${recipientMobile ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:0.875rem;color:#9ca3af;">Recipient Mobile</span>
+        <span style="font-size:0.875rem;font-weight:600;color:#111827;">${recipientMobile}</span>
+      </div>` : ""}
+
+      <!-- Amount -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:0.875rem;color:#9ca3af;">Amount</span>
+        <span style="font-size:0.875rem;font-weight:600;color:#111827;">₦${Number(amtNum).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+      </div>
+
+      <!-- Use Cashback toggle (only if user has cashback) -->
+      ${availableCashback > 0 ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:0.875rem;color:#9ca3af;">Use Cashback (₦${availableCashback.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})})</span>
+        <div style="display:flex;align-items:center;gap:0.625rem;">
+          ${deduction > 0 ? `<span style="font-size:0.875rem;color:#9ca3af;text-decoration:line-through;">-₦${deduction.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span>` : ""}
+          <label style="position:relative;display:inline-flex;align-items:center;cursor:pointer;">
+            <input id="cashback-toggle" type="checkbox" ${useCashback?"checked":""} style="opacity:0;width:0;height:0;position:absolute;" />
+            <span style="width:40px;height:22px;background:${useCashback?primaryColor:'#d1d5db'};border-radius:11px;display:block;transition:background 0.2s;position:relative;">
+              <span style="position:absolute;top:3px;left:${useCashback?'21px':'3px'};width:16px;height:16px;border-radius:50%;background:white;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+            </span>
+          </label>
+        </div>
+      </div>` : ""}
+
+      <!-- OPay Bonus / Cashback earned -->
+      ${cashbackAmount > 0 ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f3f4f6;">
+        <span style="font-size:0.875rem;color:#9ca3af;">OPay Bonus</span>
+        <span style="background:#f0fdf4;color:${primaryColor};border:1px solid ${primaryColor};border-radius:0.375rem;font-size:0.8rem;font-weight:700;padding:3px 10px;">+₦${cashbackAmount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} Cashback</span>
+      </div>` : ""}
+
+      <!-- Payment Method -->
+      <div style="margin-top:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.625rem;">
+          <span style="font-size:0.9375rem;font-weight:700;color:#111827;">Payment Method</span>
+          <span style="font-size:0.875rem;color:#9ca3af;">All &gt;</span>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-radius:0.875rem;overflow:hidden;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.875rem 1rem;border-bottom:1px dashed #e5e7eb;">
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <span style="font-size:0.875rem;font-weight:700;color:#111827;">Available Balance</span>
+              <span style="font-size:0.875rem;color:#374151;">(₦${balance.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})})</span>
+              ${Icon("info",{size:15,color:"#9ca3af"})}
+            </div>
+            <span style="color:${primaryColor};">${Icon("check",{size:18})}</span>
+          </div>
+          <div style="padding:0.625rem 1rem;border-bottom:1px solid #f3f4f6;">
+            <span style="font-size:0.8125rem;color:#9ca3af;">Wallet (₦0.00)</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.625rem 1rem;">
+            <span style="font-size:0.8125rem;color:#374151;">OWealth (₦${balance.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})})</span>
+            <span style="font-size:0.8125rem;color:#111827;font-weight:600;">-₦${fromBal.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+          </div>
+        </div>
+      </div>
+
+      <button id="ps-pay" style="width:100%;background:${primaryColor};color:white;border:none;border-radius:9999px;padding:1rem;font-weight:700;font-size:1.0625rem;cursor:pointer;margin-top:1.5rem;">Pay</button>
+    </div>`;
+  }
+
   const overlay = document.createElement("div");
   overlay.className = "overlay";
-  overlay.style.display = "flex";
-  overlay.style.alignItems = "center";
-  overlay.style.justifyContent = "center";
-  overlay.style.padding = "1rem";
-  overlay.style.zIndex = "1000";
-  
-  const detailsHtml = details.map(d => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f0f0f0;">
-      <span style="font-size:0.875rem;color:#6b7280;">${d.label}</span>
-      <span style="font-size:0.875rem;font-weight:600;color:#111827;">${d.value}</span>
-    </div>
-  `).join("");
-  
-  overlay.innerHTML = `
-    <div style="background:white;border-radius:1rem;padding:1.5rem;width:100%;max-width:22rem;box-shadow:0 10px 40px rgba(0,0,0,0.15);">
-      <div style="text-align:center;margin-bottom:1.5rem;">
-        <div style="width:3rem;height:3rem;border-radius:9999px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;color:${primaryColor};">
-          ${Icon(icon, { size: 24 })}
-        </div>
-        <h2 style="font-size:1rem;font-weight:700;margin:0 0 0.5rem;color:#111827;">${title}</h2>
-        <div style="font-size:2rem;font-weight:800;color:#111827;margin-bottom:0.5rem;letter-spacing:-0.01em;">₦${formatMoney(amount)}</div>
-      </div>
-      <div style="background:#f9fafb;border-radius:0.75rem;padding:1rem;margin-bottom:1.5rem;max-height:10rem;overflow-y:auto;">
-        ${detailsHtml || '<p style="text-align:center;color:#9ca3af;font-size:0.875rem;margin:0;">Review details carefully before confirming</p>'}
-      </div>
-      <div class="flex" style="gap:0.75rem;">
-        <button id="confirm-cancel" style="flex:1;padding:0.75rem;border:1.5px solid #d1d5db;border-radius:0.75rem;background:white;font-weight:600;font-size:0.9375rem;cursor:pointer;color:#111827;">Cancel</button>
-        <button id="confirm-proceed" style="flex:1;padding:0.75rem;border-radius:0.75rem;color:white;border:none;background:${primaryColor};font-weight:600;font-size:0.9375rem;cursor:pointer;">Continue to PIN</button>
-      </div>
-    </div>`;
-  
+  overlay.style.cssText = "display:flex;align-items:flex-end;justify-content:center;z-index:1000;";
+  overlay.innerHTML = buildSheet();
   document.body.appendChild(overlay);
-  
-  overlay.querySelector("#confirm-cancel").addEventListener("click", () => {
-    overlay.remove();
-    if (onCancel) onCancel();
+
+  requestAnimationFrame(() => {
+    overlay.querySelector("#paysheet-inner").style.transform = "translateY(0)";
   });
-  
-  overlay.querySelector("#confirm-proceed").addEventListener("click", () => {
-    overlay.remove();
-    if (onConfirm) onConfirm();
-  });
+
+  function close(cb) {
+    const inner = overlay.querySelector("#paysheet-inner");
+    if (inner) inner.style.transform = "translateY(100%)";
+    setTimeout(() => { overlay.remove(); if (cb) cb(); }, 280);
+  }
+
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(onCancel); });
+  overlay.querySelector("#ps-close").addEventListener("click", () => close(onCancel));
+
+  const toggle = overlay.querySelector("#cashback-toggle");
+  if (toggle) {
+    toggle.addEventListener("change", () => {
+      useCashback = toggle.checked;
+      overlay.querySelector("#paysheet-inner").outerHTML; // noop — rebuild
+      overlay.innerHTML = buildSheet();
+      requestAnimationFrame(() => {
+        overlay.querySelector("#paysheet-inner").style.transform = "translateY(0)";
+        overlay.querySelector("#paysheet-inner").style.transition = "none";
+      });
+      // rebind
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) close(onCancel); });
+      overlay.querySelector("#ps-close").addEventListener("click", () => close(onCancel));
+      const t2 = overlay.querySelector("#cashback-toggle");
+      if (t2) t2.addEventListener("change", arguments.callee);
+      overlay.querySelector("#ps-pay").addEventListener("click", () => close(() => onConfirm && onConfirm(useCashback)));
+    });
+  }
+
+  overlay.querySelector("#ps-pay").addEventListener("click", () => close(() => onConfirm && onConfirm(useCashback)));
 }
 
 window.showTransactionReceipt = showTransactionReceipt;

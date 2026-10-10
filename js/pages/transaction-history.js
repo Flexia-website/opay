@@ -2,9 +2,9 @@ function renderTransactionHistoryPage(container) {
   const { primaryColor } = Stores.customization.get();
   let openFilter = ""; // "" | "type" | "status"
   let statusFilter = "All Status";
-  let typeFilter = "Transfer to";
+  let typeFilter = "All Types";
   const statusOptions = ["All Status", "Successful", "Pending", "Failed", "To be paid", "Reversed"];
-  const typeOptions = ["Transfer to", "Airtime", "Data", "Betting", "TV", "Bank Transfer", "Withdrawal"];
+  const typeOptions = ["All Types", "Transfer to", "Airtime", "Data", "Betting", "TV", "Bank Transfer", "Withdrawal"];
 
   // Bank and network logos
   const logoMap = {
@@ -52,10 +52,11 @@ function renderTransactionHistoryPage(container) {
   }
 
   function render() {
-    const { transactions: allTransactions } = Stores.transaction.get();
+    const storeData = (Stores.transaction && Stores.transaction.get()) || {};
+    const allTransactions = storeData.transactions || [];
     const transactions = allTransactions.filter((t) => {
       const statusOk = statusFilter === "All Status" || t.status === statusFilter;
-      const typeOk = typeFilter === "Transfer to" || t.type.toLowerCase().includes(typeFilter.toLowerCase());
+      const typeOk = typeFilter === "All Types" || t.type.toLowerCase().includes(typeFilter.toLowerCase());
       return statusOk && typeOk;
     });
     const map = new Map();
@@ -208,7 +209,7 @@ function renderTransactionHistoryPage(container) {
     if (gotoDash) gotoDash.addEventListener("click", () => navigate("/dashboard"));
     container.querySelectorAll("[data-tx]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const t = transactions.find((x) => x.id === btn.dataset.tx);
+        const t = allTransactions.find((x) => x.id === btn.dataset.tx);
         if (t) showTxReceipt(t);
       });
     });
@@ -233,7 +234,7 @@ function renderTransactionHistoryPage(container) {
   }
 
   function handleDownload() {
-    const { transactions } = Stores.transaction.get();
+    const transactions = ((Stores.transaction && Stores.transaction.get()) || {}).transactions || [];
     if (transactions.length === 0) {
       toast.error("No transactions to download");
       return;

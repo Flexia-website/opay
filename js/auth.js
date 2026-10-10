@@ -24,6 +24,13 @@ window.Auth = {
         AuthState.accountNumber = data.account_number || '';
         AuthState.balance = data.balance || 0;
         AuthState.safeboxBalance = data.safebox_balance || 0;
+        AuthState.tier = data.tier || 1;
+        AuthState.tierUpgradeRequested = data.tier_upgrade_requested || false;
+        AuthState.nickname = data.nickname || '';
+        AuthState.gender = data.gender || '';
+        AuthState.dob = data.dob || '';
+        AuthState.address = data.address || '';
+        AuthState.profilePhoto = data.profile_photo || '';
         // Sync stores
         if (data.customization) {
           Stores.customization.set(data.customization);

@@ -158,6 +158,17 @@ async function renderAdminUsersPage(container) {
           <div><div style="font-size:0.7rem;color:#9ca3af;font-weight:600;">PHONE</div><div style="font-size:0.8rem;">${user.phone||'—'}</div></div>
           <div><div style="font-size:0.7rem;color:#9ca3af;font-weight:600;">JOINED</div><div style="font-size:0.8rem;">${user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</div></div>
           <div><div style="font-size:0.7rem;color:#9ca3af;font-weight:600;">LAST LOGIN</div><div style="font-size:0.8rem;">${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</div></div>
+          <div style="grid-column:1/-1;">
+            <div style="font-size:0.7rem;color:#9ca3af;font-weight:600;margin-bottom:4px;">ACCOUNT TIER</div>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              ${typeof TierBadge !== 'undefined' ? TierBadge(user.tier||1, 22) : ''}
+              <span style="font-weight:700;font-size:0.875rem;">Tier ${user.tier||1}</span>
+              ${user.tier_upgrade_requested ? '<span style="font-size:0.7rem;background:#fef3c7;color:#d97706;padding:2px 8px;border-radius:9999px;font-weight:700;">Upgrade Requested</span>' : ''}
+            </div>
+            <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+              ${[1,2,3].map(t => `<button class="set-tier-btn" data-tier="${t}" style="flex:1;padding:4px 0;border:1.5px solid ${(user.tier||1)===t?'#00B875':'#e5e7eb'};background:${(user.tier||1)===t?'#e8f5ec':'white'};border-radius:0.5rem;font-size:0.8125rem;font-weight:700;color:${(user.tier||1)===t?'#059669':'#374151'};cursor:pointer;">Tier ${t}</button>`).join('')}
+            </div>
+          </div>
         </div>
 
         ${user.notes ? `<div style="background:#fffbeb;border-radius:0.5rem;padding:0.75rem;margin-bottom:1rem;font-size:0.8rem;color:#92400e;border:1px solid #fde68a;"><strong>Notes:</strong> ${user.notes}</div>` : ''}
@@ -179,9 +190,32 @@ async function renderAdminUsersPage(container) {
       </div>
     `);
 
+    content.querySelectorAll('.set-tier-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const newTier = parseInt(btn.dataset.tier);
+        const res = await fetch('/api/admin/set-tier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ user_id: user.id, tier: newTier }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          user.tier = newTier;
+          user.tier_upgrade_requested = false;
+          toast.success(`Tier set to ${newTier}`);
+          close();
+          openUserDetailSheet(user);
+        } else {
+          toast.error(data.error || 'Failed');
+        }
+      });
+    });
+
     content.querySelectorAll('.action-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const action = btn.dataset.action;
+        if (action === 'set-tier') return; // handled separately below
         if (action === 'adjust-balance' || action === 'edit-balance') {
           close();
           openBalanceModal(user);

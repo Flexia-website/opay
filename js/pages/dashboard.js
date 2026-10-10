@@ -103,14 +103,15 @@ function renderDashboard(container) {
     <div class="pb-nav-safe" style="height:100vh;background:#f5f6f8;width:100%;overflow:hidden;display:flex;flex-direction:column;">
       <header class="app-header flex items-center justify-between" style="padding:0.5rem 0.5rem;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border-bottom:none;box-shadow:none;flex-shrink:0;">
         <div class="flex items-center" style="gap:0.5rem;">
-          <button id="profile-btn" style="width:${2.25 * (profilePhotoSize || 1)}rem;height:${2.25 * (profilePhotoSize || 1)}rem;border-radius:9999px;background:transparent;display:flex;align-items:center;justify-content:center;border:none;flex-shrink:0;">
+          <button id="profile-btn" style="position:relative;width:${2.25 * (profilePhotoSize || 1)}rem;height:${2.25 * (profilePhotoSize || 1)}rem;border-radius:9999px;background:transparent;display:flex;align-items:center;justify-content:center;border:none;flex-shrink:0;padding:0;">
             ${
               profilePhoto
-                ? `<img src="${profilePhoto}" alt="Profile" style="width:100%;height:100%;object-fit:contain;" />`
+                ? `<img src="${profilePhoto}" alt="Profile" style="width:100%;height:100%;object-fit:contain;border-radius:9999px;" />`
                 : `<span style="color:#111827;">${Icon("user", { size: Math.round(18 * (profilePhotoSize || 1)) })}</span>`
             }
+            ${!AuthState.isAdmin && typeof TierBadge !== 'undefined' ? `<span style="position:absolute;bottom:-4px;right:-4px;pointer-events:none;">${TierBadge(AuthState.tier||1, 18)}</span>` : ''}
           </button>
-          <h1 style="font-size:1rem;font-weight:700;margin:0;">Hi, CLINTON</h1>
+          <h1 style="font-size:1rem;font-weight:700;margin:0;">Hi, ${AuthState.isAdmin ? 'CLINTON' : (AuthState.fullName||AuthState.username||'User').toUpperCase().split(' ')[0]}</h1>
         </div>
         <div class="flex items-center" style="gap:1rem;">
           <button id="help-btn" style="position:relative;background:none;border:none;color:#374151;">
@@ -184,7 +185,7 @@ function renderDashboard(container) {
   }
 
   function bind() {
-    container.querySelector("#profile-btn").addEventListener("click", () => navigate("/me"));
+    container.querySelector("#profile-btn").addEventListener("click", () => navigate("/my-profile"));
     container.querySelector("#help-btn").addEventListener("click", () => navigate("/help"));
     container.querySelector("#qr-btn").addEventListener("click", () => navigate("/qr-code"));
     container.querySelector("#notif-btn").addEventListener("click", () => navigate("/notifications"));

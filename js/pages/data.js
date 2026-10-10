@@ -325,32 +325,32 @@ function renderDataPage(container) {
   function handleBuy(plan) {
     if (!plan) return;
     const { totalCashback } = Stores.cashback.get();
-    const cashbackToUse = useCashbackForPayment ? Math.min(totalCashback, plan.price) : 0;
-    const remainingAmount = plan.price - cashbackToUse;
     const { balance } = Stores.balance.get();
-    if (balance < remainingAmount) {
+    const cashbackEarned = +(plan.price * 0.01).toFixed(2);
+    const netName = (window.NETWORKS && window.NETWORKS.find(n => n.id === selectedNetwork)?.name) || selectedNetwork.toUpperCase();
+
+    if (balance < plan.price) {
       toast.error("Insufficient balance");
       return;
     }
-    
-    // Show confirmation modal first
+
     showConfirmationModal({
-      title: "Confirm Data Purchase",
-      amount: plan.price.toLocaleString(),
-      details: [
-        { label: "Network", value: selectedNetwork.toUpperCase() },
-        { label: "Phone Number", value: phoneNumber },
-        { label: "Data Plan", value: plan.size },
-        { label: "Price", value: `₦${plan.price.toLocaleString()}` },
-        ...(cashbackToUse > 0 ? [{ label: "Cashback to Use", value: `₦${formatMoney(cashbackToUse.toFixed(2))}` }] : []),
-        { label: "From Balance", value: `₦${formatMoney(remainingAmount.toFixed(2))}` },
-      ],
-      onConfirm: () => {
+      amount: plan.price,
+      productName: `${netName} ${plan.size} Data`,
+      productIcon: selectedNetwork,
+      recipientMobile: phoneNumber,
+      cashbackAmount: cashbackEarned,
+      useCashback: false,
+      availableCashback: totalCashback,
+      balance: balance,
+      onConfirm: (usedCashback) => {
+        const cashbackToUse = usedCashback ? Math.min(totalCashback, plan.price) : 0;
+        const remainingAmount = plan.price - cashbackToUse;
         showPinModal({
           amount: plan.price.toLocaleString(),
           recipientLabel: phoneNumber,
           onConfirm: () => {
-        const cashbackEarned = plan.price * 0.005;
+        const cashbackEarned = plan.price * 0.01;
         const transId = Date.now().toString().slice(-12);
         if (cashbackToUse > 0) Stores.cashback.useCashback(cashbackToUse);
         Stores.balance.set({ balance: Stores.balance.get().balance - remainingAmount });

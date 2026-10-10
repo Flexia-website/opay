@@ -278,6 +278,34 @@ function renderCustomizationPage(container) {
               )
               .join("")}
 
+            <div class="card" style="padding:1rem;margin-bottom:1.25rem;">
+              <h3 style="font-weight:600;margin:0 0 0.5rem;">Ad Banners</h3>
+              <p style="font-size:0.8125rem;color:#6b7280;margin:0 0 0.875rem;">Upload banner images that appear as a carousel in the Transfer to OPay and Transfer to Bank pages.</p>
+              <div id="ad-banners-list">
+                ${(() => {
+                  const { adBanners } = Stores.customization.get();
+                  const banners = adBanners || [];
+                  if (banners.length === 0) return '<p style="color:#9ca3af;font-size:0.8125rem;text-align:center;padding:0.75rem 0;">No banners uploaded yet</p>';
+                  return banners.map((url, idx) => `
+                  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;border:1px solid #e5e7eb;border-radius:0.625rem;overflow:hidden;">
+                    <img src="${url}" style="width:80px;height:45px;object-fit:cover;flex-shrink:0;" />
+                    <div style="flex:1;min-width:0;">
+                      <p style="font-size:0.75rem;color:#6b7280;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Banner ${idx + 1}</p>
+                    </div>
+                    <button data-remove-banner="${idx}" style="background:none;border:none;color:#ef4444;padding:0.5rem;cursor:pointer;flex-shrink:0;">${Icon('delete',{size:16})}</button>
+                  </div>`).join('');
+                })()}
+              </div>
+              <label style="cursor:pointer;display:block;margin-top:0.75rem;">
+                <div style="border:2px dashed #d1d5db;border-radius:0.625rem;padding:1rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0.375rem;">
+                  ${Icon('upload',{size:22,color:'#6b7280'})}
+                  <p style="font-size:0.875rem;color:#6b7280;margin:0;">Upload Ad Banner</p>
+                  <p style="font-size:0.75rem;color:#9ca3af;margin:0;">Recommended: 640 × 200 px (banner ratio)</p>
+                </div>
+                <input type="file" accept="image/*" id="ad-banner-upload" style="display:none;" />
+              </label>
+            </div>
+
             <div class="card" style="padding:1rem;">
               <h3 style="font-weight:600;margin:0 0 0.25rem;">Network Logos</h3>
               <p style="font-size:0.8125rem;color:#6b7280;margin:0 0 1rem;">Replace the MTN, Airtel, GLO, T2 Mobile, and VITEL logos shown on the Airtime and Data pages.</p>

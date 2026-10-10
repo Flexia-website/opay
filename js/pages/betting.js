@@ -1,190 +1,192 @@
 function renderBettingPage(container) {
-  const { primaryColor } = Stores.customization.get();
   const platforms = [
-    { id: "bet9ja", name: "Bet9ja" },
-    { id: "sportybet", name: "SportyBet" },
-    { id: "1xbet", name: "1xBet" },
-    { id: "nairabet", name: "NairaBet" },
-  ];
-  const amounts = [
-    { value: "500", display: "₦500" },
-    { value: "1000", display: "₦1,000" },
-    { value: "2000", display: "₦2,000" },
-    { value: "5000", display: "₦5,000" },
-    { value: "10000", display: "₦10,000" },
+    { id: 'sportybet', name: 'SportyBet', color: '#00a651', textColor: 'white', letter: 'S' },
+    { id: 'ilotbet',   name: 'iLOTBet',   color: '#1a1a2e', textColor: 'white', letter: 'i' },
+    { id: '1xbet',     name: '1xBET',     color: '#1a5fa1', textColor: 'white', letter: '1' },
   ];
 
-  let selectedPlatform = "";
-  let accountId = "";
-  let amount = "";
+  // Amount grid matching screenshot: ₦100/200/300(Pay ₦270)/400/500/1000
+  const quickAmounts = [
+    { value: '100',  display: '₦100',  pay: null },
+    { value: '200',  display: '₦200',  pay: null },
+    { value: '300',  display: '₦300',  pay: '₦270' },
+    { value: '400',  display: '₦400',  pay: '₦370' },
+    { value: '500',  display: '₦500',  pay: '₦460' },
+    { value: '1000', display: '₦1,000', pay: '₦930' },
+  ];
+
+  let selectedPlatform = platforms[0].id; // default SportyBet
+  let accountId = '';
+  let selectedAmount = '';
+  let customAmount = '';
+
+  function platformLogo(p, size) {
+    return `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${p.color};color:${p.textColor};display:flex;align-items:center;justify-content:center;font-size:${size*0.4}px;font-weight:900;flex-shrink:0;">${p.letter}</div>`;
+  }
 
   function render() {
-    const { transactions } = Stores.transaction.get();
-    const filtered = transactions.filter((t) => t.type.includes("Deposit") || t.type.includes("Betting")).slice(0, 3);
-    const canSubmit = selectedPlatform && accountId && amount;
+    const { primaryColor } = Stores.customization.get();
+    const activeP = platforms.find(p => p.id === selectedPlatform);
+    const amount = selectedAmount || customAmount;
+    const canPay = selectedPlatform && accountId.trim() && amount;
 
     container.innerHTML = `
-    <div style="min-height:100vh;background:#f9fafb;">
-      ${PageHeader("Betting")}
+    <div style="min-height:100vh;background:#f9fafb;padding-bottom:2rem;">
+
+      <!-- Header -->
+      <div style="background:white;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:10;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <button id="back-btn" style="background:none;border:none;cursor:pointer;color:#374151;padding:0;">${Icon('arrow-left',{size:22})}</button>
+          <h1 style="font-size:1.0625rem;font-weight:700;margin:0;color:#111827;">Betting</h1>
+        </div>
+        <button id="history-btn" style="background:none;border:none;color:${primaryColor};font-weight:600;font-size:0.9375rem;cursor:pointer;">History</button>
+      </div>
+
       <div style="padding:1rem;">
-        <div class="card" style="padding:1rem;">
-          <div style="background:#fff7ed;padding:0.75rem;display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;border-radius:0.5rem;">
-            ${Icon("info", { size: 20, class: "" })}
-            <p style="font-size:0.875rem;color:#c2410c;margin:0;">Fund your betting account instantly. No hidden fees!</p>
-          </div>
 
-          <h3 style="font-weight:500;margin:0 0 0.75rem;">Select Platform</h3>
-          <div class="grid" style="grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-            ${platforms
-              .map((p) => {
-                const isSelected = selectedPlatform === p.id;
-                return `
-              <button data-platform="${p.id}" style="padding:0.75rem;border-radius:0.75rem;display:flex;align-items:center;gap:0.5rem;border:${
-                  isSelected ? `2px solid ${primaryColor}` : "1px solid hsl(var(--border))"
-                };">
-                <div style="width:32px;height:32px;border-radius:9999px;background:${primaryColor}20;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;color:${primaryColor};">${p.name.charAt(0)}</div>
-                <span style="font-size:0.875rem;">${p.name}</span>
-              </button>`;
-              })
-              .join("")}
-          </div>
-
-          <div style="margin-bottom:1rem;">
-            <label style="display:block;font-size:0.875rem;font-weight:500;color:#374151;margin-bottom:0.25rem;">Betting Account ID</label>
-            <input id="account-input" type="text" inputmode="numeric" pattern="[0-9]*" class="input" placeholder="Enter your account ID/number" value="${accountId}" />
-          </div>
-
-          <div style="margin-bottom:1rem;">
-            <label style="display:block;font-size:0.875rem;font-weight:500;color:#374151;margin-bottom:0.25rem;">Amount</label>
-            <div style="display:flex;align-items:center;border:1px solid hsl(var(--border));border-radius:0.5rem;padding:0.5rem;margin-bottom:0.75rem;">
-              <span style="color:#9ca3af;">₦</span>
-              <input id="amount-input" type="text" inputmode="numeric" pattern="[0-9]*" style="flex:1;border:none;outline:none;padding:0 0.5rem;" placeholder="Enter amount" value="${amount}" />
+        <!-- Hot Offers banner card -->
+        <div style="background:white;border-radius:0.875rem;padding:1rem;margin-bottom:0.875rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+            <div style="display:flex;align-items:center;gap:0.375rem;">
+              <span style="font-size:1.125rem;">🔥</span>
+              <span style="font-size:0.9375rem;font-weight:700;color:#111827;">Hot Offers</span>
             </div>
-            <div class="grid" style="grid-template-columns:repeat(5,1fr);gap:0.5rem;">
-              ${amounts
-                .map(
-                  (a) => `
-                <button data-quick-amount="${a.value}" style="padding:0.5rem;border-radius:0.5rem;font-size:0.75rem;border:${
-                    amount === a.value ? `1px solid ${primaryColor}` : "none"
-                  };background:${amount === a.value ? primaryColor + "15" : "#f9fafb"};">${a.display}</button>`
-                )
-                .join("")}
+            <div style="display:flex;align-items:center;gap:0.375rem;">
+              <span style="background:#fef3c7;color:#d97706;font-size:0.75rem;font-weight:700;padding:2px 8px;border-radius:9999px;">₦70</span>
+              <button style="background:none;border:none;font-size:0.875rem;color:#6b7280;cursor:pointer;">All &gt;</button>
             </div>
           </div>
-
-          <button id="deposit-btn" style="width:100%;color:white;padding:0.75rem;border-radius:9999px;margin-top:1rem;font-weight:500;border:none;background:${
-            canSubmit ? primaryColor : "#cccccc"
-          };" ${canSubmit ? "" : "disabled"}>Deposit</button>
+          <div style="display:flex;gap:0.75rem;">
+            <!-- iLOTBet ad tile -->
+            <div style="flex:2;background:#0a2a1a;border-radius:0.75rem;padding:0.875rem;min-height:80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:6px;left:8px;display:flex;align-items:center;gap:4px;">
+                <span style="background:#22c55e;color:white;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:2px;">iLOTBET</span>
+                <span style="background:#00B875;color:white;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:2px;">OPay</span>
+              </div>
+              <div style="margin-top:1.5rem;">
+                <p style="color:white;font-size:0.8125rem;font-weight:800;margin:0;line-height:1.3;">Deposit &amp; Claim up to<br/>100% Coupon</p>
+                <button style="margin-top:0.5rem;background:white;color:#0a2a1a;border:none;border-radius:9999px;padding:3px 12px;font-size:0.75rem;font-weight:700;cursor:pointer;">Claim Now</button>
+              </div>
+            </div>
+            <!-- voucher tile -->
+            <div style="flex:1;border:1.5px solid #e5e7eb;border-radius:0.75rem;padding:0.75rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.375rem;">
+              <p style="font-size:1.25rem;font-weight:900;color:${primaryColor};margin:0;">₦100</p>
+              <p style="font-size:0.7rem;color:#6b7280;margin:0;text-align:center;">iLOTBet Voucher</p>
+              <button style="background:none;border:1.5px solid ${primaryColor};border-radius:9999px;padding:3px 14px;font-size:0.8rem;font-weight:700;color:${primaryColor};cursor:pointer;">Get</button>
+            </div>
+          </div>
         </div>
 
-        ${
-          filtered.length > 0
-            ? `<div class="card" style="padding:1rem;margin-top:1rem;">
-            <h3 style="font-weight:500;margin:0 0 0.75rem;">Recent Betting Transactions</h3>
-            ${filtered
-              .map(
-                (t, i) => `
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;${i < filtered.length - 1 ? "border-bottom:1px solid #f3f4f6;" : ""}">
-                <div class="flex items-center" style="gap:0.5rem;">
-                  <div style="width:2rem;height:2rem;border-radius:9999px;background:${primaryColor}15;display:flex;align-items:center;justify-content:center;">
-                    <span style="color:${primaryColor};">${Icon(t.icon || "activity", { size: 16 })}</span>
-                  </div>
-                  <div>
-                    <p style="font-weight:500;font-size:0.875rem;margin:0;">${t.type}</p>
-                    <p style="font-size:0.75rem;color:#6b7280;margin:0;">${t.date}</p>
-                  </div>
-                </div>
-                <div style="text-align:right;">
-                  <p style="font-size:0.875rem;margin:0;color:${t.amount.startsWith("+") ? "#22c55e" : "black"};">${t.amount}</p>
-                  <p style="font-size:0.75rem;color:#22c55e;margin:0;">${t.status}</p>
-                </div>
-              </div>`
-              )
-              .join("")}
-            <button id="view-all-tx" style="width:100%;text-align:center;padding:0.5rem 0;margin-top:0.5rem;font-size:0.875rem;background:none;border:none;color:${primaryColor};">View All Transactions</button>
-          </div>`
-            : ""
-        }
+        <!-- Platform tabs -->
+        <div style="background:white;border-radius:0.875rem;padding:1rem;margin-bottom:0.875rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <div style="display:flex;gap:0.875rem;overflow-x:auto;padding-bottom:0.25rem;">
+            ${platforms.map(p => `
+            <button data-platform="${p.id}" style="display:flex;flex-direction:column;align-items:center;gap:0.375rem;flex-shrink:0;background:none;border:none;cursor:pointer;padding:0 0.25rem;padding-bottom:0.5rem;border-bottom:2.5px solid ${selectedPlatform===p.id?primaryColor:'transparent'};">
+              ${platformLogo(p, 44)}
+              <span style="font-size:0.75rem;font-weight:600;color:${selectedPlatform===p.id?primaryColor:'#6b7280'};">${p.name}</span>
+            </button>`).join('')}
+            <!-- More button -->
+            <button style="display:flex;flex-direction:column;align-items:center;gap:0.375rem;flex-shrink:0;background:none;border:none;cursor:pointer;padding:0 0.25rem;padding-bottom:0.5rem;border-bottom:2.5px solid transparent;">
+              <div style="width:44px;height:44px;border-radius:9999px;border:1.5px solid #e5e7eb;display:flex;align-items:center;justify-content:center;color:#9ca3af;">···</div>
+              <span style="font-size:0.75rem;font-weight:600;color:#9ca3af;">More</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- User ID -->
+        <div style="background:white;border-radius:0.875rem;padding:1rem 1.25rem;margin-bottom:0.875rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <p style="font-size:0.875rem;font-weight:700;color:#374151;margin:0 0 0.75rem;">User ID</p>
+          <div style="border:1px solid #e5e7eb;border-radius:0.75rem;padding:0.875rem 1rem;display:flex;align-items:center;justify-content:space-between;">
+            <input id="account-input" type="text" inputmode="numeric" placeholder="Enter your User ID"
+              value="${accountId}"
+              style="border:none;outline:none;font-size:1rem;font-weight:700;color:#111827;font-family:inherit;flex:1;background:transparent;" />
+            ${Icon('chevron-down',{size:20,color:'#9ca3af'})}
+          </div>
+        </div>
+
+        <!-- Select Amount -->
+        <div style="background:white;border-radius:0.875rem;padding:1rem 1.25rem;margin-bottom:0.875rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <p style="font-size:0.875rem;font-weight:700;color:#374151;margin:0 0 0.875rem;">Select Amount</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.625rem;margin-bottom:1rem;">
+            ${quickAmounts.map(a => `
+            <button data-amount="${a.value}" style="border:1.5px solid ${selectedAmount===a.value?primaryColor:'#e5e7eb'};background:${selectedAmount===a.value?primaryColor+'12':'white'};border-radius:0.75rem;padding:0.75rem 0.5rem;text-align:center;cursor:pointer;">
+              <p style="font-size:0.9375rem;font-weight:800;color:#111827;margin:0;">${a.display}</p>
+              ${a.pay ? `<p style="font-size:0.75rem;color:${primaryColor};font-weight:600;margin:2px 0 0;">Pay ${a.pay}</p>` : ''}
+            </button>`).join('')}
+          </div>
+
+          <!-- Custom amount row -->
+          <div style="display:flex;align-items:center;gap:0.75rem;border-top:1px solid #f3f4f6;padding-top:0.875rem;">
+            <span style="font-size:1rem;color:#9ca3af;font-weight:600;">₦</span>
+            <input id="custom-amount" type="text" inputmode="numeric"
+              placeholder="100-1,000,000"
+              value="${customAmount}"
+              style="flex:1;border:none;border-bottom:1px solid #e5e7eb;outline:none;font-size:0.9375rem;padding:0.375rem 0;font-family:inherit;background:transparent;" />
+            <button id="pay-btn" style="background:${canPay?primaryColor:'#d1fae5'};color:${canPay?'white':'#6b7280'};border:none;border-radius:9999px;padding:0.625rem 1.5rem;font-weight:700;font-size:0.9375rem;cursor:pointer;flex-shrink:0;">Pay</button>
+          </div>
+        </div>
+
+        <!-- More Events -->
+        <div style="background:white;border-radius:0.875rem;padding:1rem 1.25rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <p style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0 0 0.875rem;">More Events</p>
+          <div style="display:flex;align-items:flex-start;gap:0.875rem;padding-bottom:0.75rem;border-bottom:1px solid #f3f4f6;">
+            <div style="width:2.5rem;height:2.5rem;border-radius:0.5rem;background:#fef9c3;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.25rem;">☀️</div>
+            <div>
+              <p style="font-size:0.875rem;font-weight:700;color:#111827;margin:0 0 0.25rem;">Exclusive Bonus, New Users Only!</p>
+              <p style="font-size:0.8rem;color:#6b7280;margin:0;line-height:1.4;">Check-in 7 days and claim up to ₦7,150 bonus.</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>`;
 
-    bindPageHeader(container, "/dashboard");
-    container.querySelectorAll("[data-platform]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        selectedPlatform = btn.dataset.platform;
-        render();
+    container.querySelector('#back-btn').addEventListener('click', () => navigate('/dashboard'));
+    container.querySelector('#history-btn').addEventListener('click', () => navigate('/transaction-history'));
+
+    container.querySelectorAll('[data-platform]').forEach(btn => {
+      btn.addEventListener('click', () => { selectedPlatform = btn.dataset.platform; render(); });
+    });
+
+    const acctInput = container.querySelector('#account-input');
+    acctInput.addEventListener('input', () => { accountId = acctInput.value; });
+
+    container.querySelectorAll('[data-amount]').forEach(btn => {
+      btn.addEventListener('click', () => { selectedAmount = btn.dataset.amount; customAmount = ''; render(); });
+    });
+
+    const custInput = container.querySelector('#custom-amount');
+    custInput.addEventListener('input', () => { customAmount = custInput.value.replace(/[^\d]/g,''); selectedAmount = ''; });
+    attachAmountKeypad(custInput, { decimal: false });
+
+    const payBtn = container.querySelector('#pay-btn');
+    payBtn.addEventListener('click', () => {
+      if (!canPay) return;
+      const amt = parseInt((selectedAmount || customAmount).replace(/,/g,''), 10);
+      const { balance } = Stores.balance.get();
+      if (amt > balance) { toast.error('Insufficient balance'); return; }
+      const pName = platforms.find(p => p.id === selectedPlatform)?.name || '';
+      showPinModal({
+        amount: amt.toLocaleString(),
+        recipientLabel: pName,
+        onConfirm: () => {
+          Stores.balance.set({ balance: balance - amt });
+          const now = new Date();
+          const fd = `${now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} ${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}`;
+          const txId = '25'+Math.floor(Math.random()*1e18).toString().padStart(20,'0');
+          Stores.transaction.addTransaction({ type: `${pName} Deposit`, amount: `-₦${amt.toLocaleString()}`, status: 'Successful', icon: 'activity' });
+          showTransactionReceipt({
+            amount: `₦${amt.toLocaleString()}`, success: true, date: fd,
+            details: [
+              { label: 'Betting Platform', value: pName },
+              { label: 'User ID', value: accountId },
+              { label: 'Transaction No.', value: txId },
+            ],
+            title: `${pName} Deposit`,
+            footerText: 'Enjoy a better life with OPay.',
+            onClose: () => { selectedAmount=''; customAmount=''; render(); },
+          });
+        },
       });
-    });
-    const accountInput = container.querySelector("#account-input");
-    accountInput.addEventListener("input", () => {
-      accountId = accountInput.value;
-    });
-    const amtInput = container.querySelector("#amount-input");
-    amtInput.addEventListener("input", () => {
-      amount = amtInput.value.replace(/[^\d]/g, "");
-    });
-    attachAmountKeypad(amtInput, { decimal: false });
-    container.querySelectorAll("[data-quick-amount]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        amount = btn.dataset.quickAmount;
-        render();
-      });
-    });
-    const depositBtn = container.querySelector("#deposit-btn");
-    if (canSubmit) depositBtn.addEventListener("click", handleDeposit);
-    const viewAll = container.querySelector("#view-all-tx");
-    if (viewAll) viewAll.addEventListener("click", () => navigate("/transaction-history"));
-  }
-
-  function handleDeposit() {
-    if (!selectedPlatform || !accountId || !amount) {
-      alert("Please fill in all required fields");
-      return;
-    }
-    const amountValue = parseInt(amount.replace(/,/g, ""), 10);
-    const { balance } = Stores.balance.get();
-    if (amountValue > balance) {
-      alert("Insufficient balance");
-      return;
-    }
-    const platformName = platforms.find((p) => p.id === selectedPlatform).name;
-    showPinModal({
-      amount: amountValue.toLocaleString(),
-      recipientLabel: platformName,
-      onConfirm: () => {
-        Stores.balance.set({ balance: Stores.balance.get().balance - amountValue });
-        const transId = "25" + Math.floor(Math.random() * 1e18).toString().padStart(20, "0");
-        const now = new Date();
-        const formattedDate = `${now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}`;
-
-        Stores.transaction.addTransaction({
-          type: `${platformName} Deposit`,
-          amount: `-₦${amountValue.toLocaleString()}`,
-          status: "Successful",
-          icon: "activity",
-        });
-
-        showTransactionReceipt({
-          amount: `₦${amountValue.toLocaleString()}`,
-          success: true,
-          date: formattedDate,
-          details: [
-            { label: "Betting Platform", value: platformName },
-            { label: "Account ID", value: accountId },
-            { label: "Transaction Type", value: "Betting Deposit" },
-            { label: "Transaction No.", value: transId },
-          ],
-          title: "Betting Deposit Successful",
-          footerText:
-            "Enjoy a better life with OPay. Get free transfers, withdrawals, bill payments, instant loans, and good annual interest on your savings. OPay is licensed by the Central Bank of Nigeria and insured by the NDIC.",
-          onClose: () => {
-            selectedPlatform = "";
-            accountId = "";
-            amount = "";
-            render();
-          },
-        });
-      },
     });
   }
 

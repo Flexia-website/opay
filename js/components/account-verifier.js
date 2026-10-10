@@ -1,44 +1,29 @@
 // Account Number Verification Service
-// Simulates real bank verification APIs (in production, use actual bank APIs)
-
-const MOCK_ACCOUNTS = {
-  // Format: "bankCode-accountNumber": { name, account_name, account_number }
-  "044-0123456789": { name: "OKECHUKWU PETER ONUMA", bank_code: "044", bank: "Access Bank" },
-  "058-0987654321": { name: "SEAGAMY BUKKY ADEDEJI", bank_code: "058", bank: "GTB" },
-  "011-1111111111": { name: "ROSE EJIOFOR", bank_code: "011", bank: "First Bank" },
-  "033-2222222222": { name: "CLINTON EJIOFOR-BENJAMIN", bank_code: "033", bank: "UBA" },
-  "039-3333333333": { name: "ENYINNAYA ONYINYECHI", bank_code: "039", bank: "Stanbic IBTC" },
-  "070-4444444444": { name: "LEDESI VICTOR", bank_code: "070", bank: "FCMB" },
-  "057-5555555555": { name: "HAMINA NIKE AZEEZ", bank_code: "057", bank: "Zenith Bank" },
-  "050-6666666666": { name: "ANDREW ONWUME", bank_code: "050", bank: "Eco Bank" },
-  "032-7777777777": { name: "JOHN OKAFOR", bank_code: "032", bank: "Union Bank" },
-  "035-8888888888": { name: "FATIMA AHMED", bank_code: "035", bank: "Wema Bank" }
-};
+// Uses NubAPI (nubapi.com) — free Nigerian bank account name lookup
+// Requires NUBAPI_TOKEN env var on the server (get free token at nubapi.com)
 
 function verifyAccountNumber(accountNumber, bankCode) {
-  return new Promise((resolve, reject) => {
-    // Simulate API delay
-    setTimeout(() => {
-      const key = `${bankCode}-${accountNumber}`;
-      const account = MOCK_ACCOUNTS[key];
-
-      if (account) {
-        resolve({
+  return fetch(
+    `/api/verify-account?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
+    { credentials: 'include' }
+  )
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        return {
           success: true,
-          account_name: account.name,
-          account_number: accountNumber,
-          bank: account.bank,
-          bank_code: bankCode
-        });
-      } else {
-        reject({
-          success: false,
-          error: "Account not found or invalid",
-          message: "Please verify the account number and bank"
-        });
+          account_name: data.account_name,
+          account_number: data.account_number || accountNumber,
+          bank: data.bank_name || '',
+          bank_code: data.bank_code || bankCode,
+        };
       }
-    }, 800);
-  });
+      return Promise.reject({ success: false, error: data.error || 'Verification failed', message: data.error || 'Please verify the account number and bank' });
+    })
+    .catch(function(err) {
+      if (err && err.success === false) return Promise.reject(err);
+      return Promise.reject({ success: false, error: 'Network error', message: 'Could not reach verification service' });
+    });
 }
 
 // Show account verification modal

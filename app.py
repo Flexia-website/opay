@@ -4,6 +4,7 @@ import uuid
 import hashlib
 import cloudinary
 import cloudinary.uploader
+import requests as http_requests
 from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -27,17 +28,28 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # ── Cloudinary config ──────────────────────────────────────────────────────────
-cloudinary.config(
-    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.environ.get('CLOUDINARY_API_KEY'),
-    api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
-    secure=True
-)
+# Accepts CLOUDINARY_URL  (cloudinary://api_key:api_secret@cloud_name)
+_cloudinary_url = os.environ.get('CLOUDINARY_URL', '')
+if _cloudinary_url:
+    # cloudinary.config() can parse the URL directly when passed as url=
+    cloudinary.config(url=_cloudinary_url, secure=True)
+else:
+    # fallback to individual vars for local dev
+    cloudinary.config(
+        cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+        api_key=os.environ.get('CLOUDINARY_API_KEY', ''),
+        api_secret=os.environ.get('CLOUDINARY_API_SECRET', ''),
+        secure=True
+    )
 
 # ── Seeded Admin Credentials ───────────────────────────────────────────────────
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'clinton')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '147852')
 ADMIN_PIN = os.environ.get('ADMIN_PIN', '0803')
+
+# ── NubAPI (free Nigerian bank account name lookup) ────────────────────────────
+# Get your free token at https://nubapi.com/user/api-tokens
+NUBAPI_TOKEN = os.environ.get('NUBAPI_TOKEN', '')
 
 # ── Database Models ────────────────────────────────────────────────────────────
 def hash_password(pw):
@@ -58,8 +70,14 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
-    notes = db.Column(db.Text, nullable=True)  # admin can write notes on users
-    customization = db.Column(db.Text, default='{}')  # JSON string
+    notes = db.Column(db.Text, nullable=True)
+    customization = db.Column(db.Text, default='{}')
+    tier = db.Column(db.Integer, default=1)           # 1 | 2 | 3
+    nickname = db.Column(db.String(80), nullable=True)
+    gender = db.Column(db.String(20), nullable=True)
+    dob = db.Column(db.String(20), nullable=True)      # stored as string **-**-YY pattern
+    address = db.Column(db.Text, nullable=True)
+    tier_upgrade_requested = db.Column(db.Boolean, default=False)  # JSON string
 
     def to_dict(self, include_sensitive=False):
         d = {
@@ -74,6 +92,12 @@ class User(db.Model):
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
+            'tier': self.tier or 1,
+            'nickname': self.nickname,
+            'gender': self.gender,
+            'dob': self.dob,
+            'address': self.address,
+            'tier_upgrade_requested': self.tier_upgrade_requested or False,
         }
         if include_sensitive:
             d['notes'] = self.notes
@@ -269,6 +293,13 @@ def check_session():
                 'balance': user.balance,
                 'safebox_balance': user.safebox_balance,
                 'customization': json.loads(user.customization or '{}'),
+                'tier': user.tier or 1,
+                'tier_upgrade_requested': user.tier_upgrade_requested or False,
+                'nickname': user.nickname,
+                'gender': user.gender,
+                'dob': user.dob,
+                'address': user.address,
+                'profile_photo': json.loads(user.customization or '{}').get('profilePhoto', ''),
             })
     return jsonify({'is_admin': False, 'user': ''})
 
@@ -280,6 +311,18 @@ def get_balance():
         return jsonify({'balance': get_admin_state().balance})
     user = db.session.get(User, session['user_id'])
     return jsonify({'balance': user.balance if user else 0})
+
+@app.route('/api/user/balance', methods=['GET'])
+@require_auth
+def get_user_balance():
+    """Normal users call this to get their current balance from the DB (live sync)."""
+    if session.get('is_admin'):
+        state = get_admin_state()
+        return jsonify({'ok': True, 'balance': state.balance, 'safebox_balance': state.safebox_balance})
+    user = db.session.get(User, session['user_id'])
+    if not user:
+        return jsonify({'ok': False, 'error': 'Not found'}), 404
+    return jsonify({'ok': True, 'balance': user.balance, 'safebox_balance': user.safebox_balance})
 
 @app.route('/api/balance/adjust', methods=['POST'])
 @require_admin
@@ -598,6 +641,74 @@ def get_state():
     })
 
 # ── User self-service: update own profile ─────────────────────────────────────
+@app.route('/api/user/tier/request', methods=['POST'])
+@require_auth
+def request_tier_upgrade():
+    if session.get('is_admin'):
+        return jsonify({'ok': False, 'error': 'Admin accounts use /api/admin/set-tier'}), 400
+    user = db.session.get(User, session['user_id'])
+    if not user:
+        return jsonify({'ok': False, 'error': 'Not found'}), 404
+    if user.tier >= 3:
+        return jsonify({'ok': False, 'error': 'Already at highest tier'}), 400
+    user.tier_upgrade_requested = True
+    db.session.commit()
+    return jsonify({'ok': True, 'message': 'Upgrade request submitted. Admin will review.'})
+
+@app.route('/api/admin/set-tier', methods=['POST'])
+@require_auth
+def admin_set_tier():
+    if not session.get('is_admin'):
+        return jsonify({'ok': False, 'error': 'Admin only'}), 403
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    new_tier = int(data.get('tier', 1))
+    if new_tier not in (1, 2, 3):
+        return jsonify({'ok': False, 'error': 'Tier must be 1, 2, or 3'}), 400
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({'ok': False, 'error': 'User not found'}), 404
+    user.tier = new_tier
+    user.tier_upgrade_requested = False
+    db.session.commit()
+    return jsonify({'ok': True, 'tier': new_tier})
+
+@app.route('/api/user/profile', methods=['PATCH'])
+@require_auth
+def update_user_profile_fields():
+    user = db.session.get(User, session.get('user_id'))
+    if not user:
+        return jsonify({'ok': False, 'error': 'Not found'}), 404
+    data = request.get_json() or {}
+    allowed = ['nickname', 'gender', 'dob', 'address', 'full_name']
+    for k in allowed:
+        if k in data:
+            setattr(user, k, data[k])
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/user/customization', methods=['POST'])
+@require_auth
+def set_user_customization():
+    """Normal users save their own customization (colors, profile photo, etc.) to PostgreSQL."""
+    if session.get('is_admin'):
+        return jsonify({'error': 'Admin uses /api/customization'}), 400
+    user = db.session.get(User, session['user_id'])
+    if not user:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.get_json() or {}
+    allowed = ['primaryColor', 'secondaryColor', 'profilePhoto', 'profilePhotoSize', 'buttonBackgroundColor', 'buttonImages', 'networkImages']
+    try:
+        current = json.loads(user.customization or '{}')
+    except Exception:
+        current = {}
+    for key in allowed:
+        if key in data:
+            current[key] = data[key]
+    user.customization = json.dumps(current)
+    db.session.commit()
+    return jsonify({'ok': True, 'customization': current})
+
 @app.route('/api/user/profile', methods=['PATCH'])
 @require_auth
 def update_own_profile():
@@ -712,6 +823,44 @@ def transfer_opay():
         'sender_name': sender_name,
         'note': note,
     })
+
+# ── Bank account name verification via NubAPI ─────────────────────────────────
+@app.route('/api/verify-account', methods=['GET'])
+@require_auth
+def verify_account():
+    account_number = (request.args.get('account_number') or '').strip()
+    bank_code = (request.args.get('bank_code') or '').strip()
+
+    if not account_number or len(account_number) != 10:
+        return jsonify({'ok': False, 'error': 'Account number must be 10 digits'}), 400
+    if not bank_code:
+        return jsonify({'ok': False, 'error': 'Bank code is required'}), 400
+
+    if not NUBAPI_TOKEN:
+        return jsonify({'ok': False, 'error': 'Account verification not configured (NUBAPI_TOKEN missing)'}), 503
+
+    try:
+        resp = http_requests.get(
+            'https://nubapi.com/api/verify',
+            params={'account_number': account_number, 'bank_code': bank_code},
+            headers={'Authorization': f'Bearer {NUBAPI_TOKEN}', 'Accept': 'application/json'},
+            timeout=10
+        )
+        data = resp.json()
+        # NubAPI returns account_name, first_name, last_name, Bank_name, account_number, bank_code
+        if resp.status_code == 200 and data.get('account_name'):
+            return jsonify({
+                'ok': True,
+                'account_name': data.get('account_name', ''),
+                'account_number': data.get('account_number', account_number),
+                'bank_name': data.get('Bank_name', ''),
+                'bank_code': data.get('bank_code', bank_code),
+            })
+        else:
+            msg = data.get('message') or data.get('error') or 'Account not found'
+            return jsonify({'ok': False, 'error': msg})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'Verification service unavailable'}), 502
 
 # ── PWA: serve index.html for all non-API routes ──────────────────────────────
 @app.route('/', defaults={'path': ''})

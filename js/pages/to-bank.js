@@ -6,111 +6,147 @@ function renderToBankPage(container) {
   let amount = "";
   let verifiedAccount = null;
 
-  function render() {
-    container.innerHTML = `
-      <div style="display:flex;flex-direction:column;min-height:100vh;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem;background:white;border-bottom:1px solid #e5e7eb;">
-          <div style="display:flex;align-items:center;gap:0.75rem;">
-            <button id="back-btn" style="background:none;border:none;color:#111827;cursor:pointer;display:flex;align-items:center;justify-content:center;">${Icon('chevron-left', {size: 20})}</button>
-            <h1 style="font-size:1.125rem;font-weight:700;margin:0;color:#111827;">Transfer to Bank Account</h1>
-          </div>
-          <a href="#" style="color:#00B876;font-weight:600;font-size:0.9375rem;text-decoration:none;">History</a>
-        </div>
+  function getRecents() {
+    return Stores.recentTransfers.get().bank || [];
+  }
 
-        <div class="pb-nav-safe" style="flex:1;overflow-y:auto;">
-          <div style="padding:1rem;">
-            <!-- Promo Card -->
-            <div style="background:linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);border-radius:1rem;padding:1.5rem;margin-bottom:1.5rem;color:white;position:relative;overflow:hidden;">
-              <div style="position:absolute;top:-20px;right:-20px;opacity:0.1;font-size:3rem;display:flex;align-items:center;justify-content:center;color:#ffffff;">${Icon('thumbs-up', {size: 80})}</div>
-              <div style="position:relative;z-index:1;">
-                <p style="font-size:0.8125rem;margin:0 0 0.5rem;opacity:0.9;">Largest & Fastest & Lowest Fees</p>
-                <h2 style="font-size:1.25rem;font-weight:800;margin:0.5rem 0;color:white;">OPay is Okay · Easy Payment</h2>
-                <button style="background:#00B876;color:white;border:none;padding:0.5rem 1.5rem;border-radius:9999px;font-weight:600;font-size:0.875rem;cursor:pointer;margin-top:1rem;">Try Now</button>
-              </div>
-            </div>
+  function bankBadge(bankName) {
+    const colors = {
+      'GTBank': '#FF6600', 'GTB': '#FF6600',
+      'Access Bank': '#D41159', 'First Bank': '#1a3365',
+      'UBA': '#EC1C24', 'Zenith Bank': '#001E6C',
+      'FCMB': '#004B93', 'Stanbic IBTC': '#003478',
+      'OPay': '#00B875', 'Monie Point': '#0e0e52',
+      'MONIE POINT': '#0e0e52', 'PalmPay': '#00b300',
+      'Wema Bank': '#01aeef', 'Fidelity Bank': '#008000',
+    };
+    const initial = bankName ? bankName[0].toUpperCase() : 'B';
+    const bg = colors[bankName] || '#6b7280';
+    return `<div style="width:2rem;height:2rem;border-radius:9999px;background:${bg};color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.75rem;flex-shrink:0;">${initial}</div>`;
+  }
 
-            <!-- Free transfers info -->
-            <div style="background:#f3e8ff;border-radius:0.75rem;padding:1rem;margin-bottom:1.5rem;display:flex;gap:0.75rem;">
-              <span style="display:flex;align-items:center;justify-content:center;color:#7c3aed;">${Icon('zap', {size: 18})}</span>
-              <div>
-                <p style="font-size:0.875rem;font-weight:700;color:#7c3aed;margin:0;">Free transfers for the day: 3</p>
-              </div>
-            </div>
-
-            <!-- Recipient Account Section -->
-            <div style="margin-bottom:1.5rem;">
-              <h3 style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0 0 1rem;">Recipient Account</h3>
-              
-              <input id="account-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Enter Account Number" style="width:100%;padding:0.875rem;border:1px solid #e5e7eb;border-radius:0.75rem;font-size:0.9375rem;margin-bottom:0.75rem;font-family:inherit;" />
-              
-              <input id="account-name-input" type="text" placeholder="Recipient Name" style="width:100%;padding:0.875rem;border:1px solid #e5e7eb;border-radius:0.75rem;font-size:0.9375rem;margin-bottom:1rem;font-family:inherit;" />
-
-              <div id="bank-select" style="padding:0.875rem;border:1px solid #e5e7eb;border-radius:0.75rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:white;margin-bottom:1rem;">
-                <span style="color:${selectedBank ? '#111827' : '#9ca3af'};font-size:0.9375rem;">${selectedBank || 'Select Bank'}</span>
-                <span style="color:#00B876;">›</span>
-              </div>
-
-              <div style="margin-bottom:1rem;">
-                <label style="font-size:0.8125rem;color:#6b7280;display:block;margin-bottom:0.5rem;">Amount</label>
-                <input id="amount-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Enter amount" value="${amount}" style="width:100%;padding:0.875rem;border:1px solid #e5e7eb;border-radius:0.75rem;font-size:0.9375rem;font-family:inherit;" />
-              </div>
-
-              <!-- Account Name Display (after verification) -->
-              ${verifiedAccount ? `
-                <div style="background:#ecfdf5;border:1px solid #86efac;border-radius:0.75rem;padding:1rem;margin-bottom:1rem;">
-                  <p style="font-size:0.75rem;color:#6b7280;margin:0 0 0.5rem;font-weight:500;">VERIFIED ACCOUNT NAME</p>
-                  <p style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0;">${verifiedAccount.account_name}</p>
-                  <p style="font-size:0.75rem;color:#6b7280;margin:0.5rem 0 0;display:flex;align-items:center;gap:0.25rem;"><span style="display:flex;align-items:center;justify-content:center;color:#16a34a;">${Icon('check', {size: 14})}</span> Account verified successfully</p>
-                </div>
-              ` : ''}
-
-              <button id="next-btn" style="width:100%;background:#a0e0c4;color:white;border:none;padding:1rem;border-radius:9999px;font-weight:700;font-size:1rem;margin-top:1.5rem;cursor:pointer;transition:background 0.2s;">${verifiedAccount ? 'Continue' : 'Verify Account'}</button>
-            </div>
-
-            <!-- Bank Transfer Success Rate Monitor -->
-            <div style="background:white;border:1px solid #e5e7eb;border-radius:0.75rem;padding:1rem;display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;cursor:pointer;">
-              <span style="display:flex;align-items:center;justify-content:center;color:#00B876;">${Icon('bar-chart-2', {size: 18})}</span>
-              <div>
-                <p style="font-size:0.875rem;font-weight:700;color:#111827;margin:0;">Bank Transfer Success Rate Monitor</p>
-              </div>
-              <span style="margin-left:auto;color:#00B876;">›</span>
-            </div>
-
-            <!-- Recents -->
-            <div>
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-                <h3 style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0;">Recents</h3>
-                <span style="color:#00B876;font-size:0.8125rem;font-weight:600;">Favourites</span>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:0.75rem;padding:1rem;border:1px solid #e5e7eb;border-radius:0.75rem;margin-bottom:0.75rem;cursor:pointer;">
-                <div style="width:2.5rem;height:2.5rem;border-radius:9999px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;color:#0369a1;">${Icon('user', {size: 16})}</div>
-                <div style="flex:1;">
-                  <p style="font-size:0.875rem;font-weight:600;color:#111827;margin:0;">POS Transfer-ANDREW - ONWUME</p>
-                  <p style="font-size:0.75rem;color:#6b7280;margin:0.25rem 0 0;">5995280278 MONIE POINT</p>
-                </div>
-                <div style="width:2rem;height:2rem;border-radius:50%;background:#3b82f6;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.75rem;">M</div>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:0.75rem;padding:1rem;border:1px solid #e5e7eb;border-radius:0.75rem;">
-                <div style="width:2.5rem;height:2.5rem;border-radius:9999px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;color:#0369a1;">${Icon('user', {size: 16})}</div>
-                <div style="flex:1;">
-                  <p style="font-size:0.875rem;font-weight:600;color:#111827;margin:0;">ROSE EJIOFOR</p>
-                  <p style="font-size:0.75rem;color:#6b7280;margin:0.25rem 0 0;">8160881049 Momo Payment Service B...</p>
-                </div>
-                <div style="width:2rem;height:2rem;border-radius:50%;background:#10b981;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.75rem;color:white;">${Icon('building-2', {size: 14})}</div>
-              </div>
-            </div>
-          </div>
-        </div>
+  function renderRecentItem(r, idx) {
+    const acctLabel = r.account_number + ' ' + r.bank;
+    return `
+    <button data-recent-idx="${idx}" style="width:100%;display:flex;align-items:center;gap:0.75rem;padding:0.875rem 0;border:none;background:none;cursor:pointer;border-bottom:1px solid #f3f4f6;text-align:left;">
+      <div style="width:2.5rem;height:2.5rem;border-radius:9999px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;color:#0369a1;flex-shrink:0;">
+        ${Icon('user',{size:16})}
       </div>
-    `;
+      <div style="flex:1;min-width:0;">
+        <p style="font-size:0.875rem;font-weight:600;color:#111827;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.name}</p>
+        <p style="font-size:0.75rem;color:#6b7280;margin:0.25rem 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${acctLabel}</p>
+      </div>
+      ${bankBadge(r.bank)}
+    </button>`;
+  }
 
-    document.getElementById("back-btn").addEventListener("click", () => navigate("/"));
+  function render() {
+    const { primaryColor, adBanners } = Stores.customization.get();
+    const recents = getRecents();
+
+    function adCarouselHtml() {
+      if (!adBanners || adBanners.length === 0) return '';
+      return `
+      <div style="position:relative;overflow:hidden;border-radius:0.875rem;margin-bottom:1rem;">
+        <div id="ad-carousel-inner" style="display:flex;transition:transform 0.35s ease;">
+          ${adBanners.map(url => `
+          <div style="min-width:100%;border-radius:0.875rem;overflow:hidden;">
+            <img src="${url}" style="width:100%;height:auto;display:block;" />
+          </div>`).join('')}
+        </div>
+        ${adBanners.length > 1 ? `<div style="display:flex;justify-content:center;gap:5px;margin-top:0.5rem;">
+          ${adBanners.map((_, i) => `<div class="ad-dot" data-idx="${i}" style="width:6px;height:6px;border-radius:9999px;background:${i === 0 ? primaryColor : '#d1d5db'};"></div>`).join('')}
+        </div>` : ''}
+      </div>`;
+    }
+
+    container.innerHTML = `
+    <div style="display:flex;flex-direction:column;min-height:100vh;background:#f9fafb;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;background:white;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:10;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <button id="back-btn" style="background:none;border:none;color:#111827;cursor:pointer;">${Icon('chevron-left',{size:22})}</button>
+          <h1 style="font-size:1.0625rem;font-weight:700;margin:0;color:#111827;">Transfer to Bank Account</h1>
+        </div>
+        <button style="background:none;border:none;color:${primaryColor};font-weight:600;font-size:0.9375rem;cursor:pointer;">History</button>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;padding:1rem 1.25rem;">
+
+        ${adBanners && adBanners.length > 0 ? adCarouselHtml() : ''}
+
+        <!-- Free transfers badge -->
+        <div style="background:#f5f3ff;border-radius:0.75rem;padding:0.875rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.625rem;">
+          <div style="width:24px;height:24px;border-radius:9999px;background:#7c3aed;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            ${Icon('zap',{size:13,color:'white'})}
+          </div>
+          <p style="font-size:0.875rem;font-weight:700;color:#7c3aed;margin:0;">Free transfers for the day: <span style="font-size:1.0625rem;">3</span></p>
+        </div>
+
+        <!-- Recipient Account card -->
+        <div style="background:white;border-radius:0.875rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:1rem;">
+          <h3 style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0 0 1rem;">Recipient Account</h3>
+
+          <div style="border:1px solid #e5e7eb;border-radius:0.75rem;overflow:hidden;margin-bottom:0.75rem;">
+            <input id="account-input" type="text" inputmode="numeric" pattern="[0-9]*"
+              placeholder="Enter 10 digits Account Number"
+              value="${accountNumber}"
+              style="width:100%;padding:0.875rem 1rem;border:none;outline:none;font-size:0.9375rem;font-family:inherit;box-sizing:border-box;" />
+          </div>
+
+          <div id="bank-select" style="border:1px solid #e5e7eb;border-radius:0.75rem;padding:0.875rem 1rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:white;margin-bottom:1rem;">
+            <span style="color:${selectedBank ? '#111827' : '#9ca3af'};font-size:0.9375rem;">${selectedBank || 'Select Bank'}</span>
+            ${Icon('chevron-right',{size:18,color:'#9ca3af'})}
+          </div>
+
+          <!-- Verified account name display -->
+          ${verifiedAccount ? `
+          <div style="background:#ecfdf5;border:1px solid #86efac;border-radius:0.75rem;padding:0.875rem 1rem;margin-bottom:1rem;">
+            <p style="font-size:0.75rem;color:#6b7280;margin:0 0 0.375rem;font-weight:500;">VERIFIED ACCOUNT NAME</p>
+            <p style="font-size:0.9375rem;font-weight:700;color:#111827;margin:0;">${verifiedAccount.account_name}</p>
+            <div style="display:flex;align-items:center;gap:0.25rem;margin-top:0.375rem;">
+              ${Icon('check',{size:14,color:'#16a34a'})}
+              <p style="font-size:0.75rem;color:#6b7280;margin:0;">Account verified</p>
+            </div>
+          </div>` : ''}
+
+          <button id="next-btn" style="width:100%;background:${verifiedAccount ? primaryColor : '#a0e0c4'};color:white;border:none;padding:0.9rem;border-radius:9999px;font-weight:700;font-size:1rem;cursor:pointer;transition:background 0.2s;">
+            ${verifiedAccount ? 'Next' : 'Next'}
+          </button>
+        </div>
+
+        <!-- Bank Transfer Success Rate Monitor -->
+        <div style="background:white;border:1px solid #e5e7eb;border-radius:0.875rem;padding:1rem 1.25rem;display:flex;align-items:center;gap:0.875rem;margin-bottom:1rem;cursor:pointer;">
+          <div style="width:40px;height:40px;border-radius:0.625rem;background:#e8f5ec;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            ${Icon('bar-chart',{size:20,color:primaryColor})}
+          </div>
+          <p style="font-size:0.875rem;font-weight:700;color:#111827;margin:0;flex:1;">Bank Transfer Success Rate Monitor</p>
+          ${Icon('chevron-right',{size:18,color:'#9ca3af'})}
+        </div>
+
+        <!-- Recents / Favourites -->
+        <div style="background:white;border-radius:0.875rem;padding:1rem 1.25rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <div style="display:flex;align-items:center;gap:1.5rem;border-bottom:1px solid #f3f4f6;margin-bottom:0;">
+            <button id="tab-recents" style="background:none;border:none;font-weight:700;font-size:0.9375rem;color:${primaryColor};padding:0 0 0.75rem;border-bottom:2px solid ${primaryColor};cursor:pointer;">Recents</button>
+            <button id="tab-favs" style="background:none;border:none;font-weight:600;font-size:0.9375rem;color:#6b7280;padding:0 0 0.75rem;cursor:pointer;">Favourites</button>
+            <button style="background:none;border:none;margin-left:auto;padding:0 0 0.75rem;cursor:pointer;color:#6b7280;">
+              ${Icon('search',{size:18})}
+            </button>
+          </div>
+          <div id="recents-list">
+            ${recents.length === 0
+              ? `<p style="color:#9ca3af;font-size:0.875rem;text-align:center;padding:1.5rem 0;margin:0;">No recent bank transfers yet</p>`
+              : recents.slice(0, 5).map((r, i) => renderRecentItem(r, i)).join('')
+            }
+          </div>
+        </div>
+
+      </div>
+    </div>`;
+
+    document.getElementById("back-btn").addEventListener("click", () => navigate("/dashboard"));
     document.getElementById("bank-select").addEventListener("click", () => {
       showBankSelector((bank) => {
         selectedBank = bank;
-        // Get bank code from NIGERIAN_BANKS
         const bankData = NIGERIAN_BANKS.find(b => b.name === bank);
         selectedBankCode = bankData ? bankData.code : "";
         render();
@@ -122,133 +158,135 @@ function renderToBankPage(container) {
       verifiedAccount = null;
     });
 
-    const nameInput = document.getElementById("account-name-input");
-    if (nameInput) {
-      nameInput.addEventListener("input", (e) => {
-        accountName = e.target.value;
-      });
+    // Ad carousel
+    const inner = container.querySelector('#ad-carousel-inner');
+    if (inner && adBanners && adBanners.length > 1) {
+      let cur = 0;
+      const dots = container.querySelectorAll('.ad-dot');
+      setInterval(() => {
+        cur = (cur + 1) % adBanners.length;
+        inner.style.transform = `translateX(-${cur * 100}%)`;
+        dots.forEach((d, i) => d.style.background = i === cur ? primaryColor : '#d1d5db');
+      }, 3500);
     }
 
-    const amountInp = document.getElementById("amount-input");
-    if (amountInp) {
-      amountInp.addEventListener("input", (e) => {
-        amount = e.target.value;
+    // Click a recent to prefill
+    container.querySelectorAll('[data-recent-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const r = getRecents()[parseInt(btn.dataset.recentIdx)];
+        if (!r) return;
+        accountNumber = r.account_number;
+        selectedBank = r.bank;
+        const bankData = NIGERIAN_BANKS.find(b => b.name === r.bank);
+        selectedBankCode = bankData ? bankData.code : '';
+        verifiedAccount = { account_name: r.name };
+        render();
       });
-    }
+    });
 
-    document.getElementById("next-btn").addEventListener("click", () => {
-      if (!accountNumber) {
-        alert("Please enter an account number");
-        return;
+    document.getElementById("next-btn").addEventListener("click", async () => {
+      if (!accountNumber || accountNumber.length < 10) {
+        toast.error('Enter a 10-digit account number'); return;
       }
       if (!selectedBank) {
-        alert("Please select a bank");
-        return;
+        toast.error('Select a bank'); return;
       }
-      if (!accountName) {
-        alert("Please enter recipient name");
-        return;
-      }
-      if (!amount) {
-        alert("Please enter amount");
-        return;
-      }
-      
-      // Skip verification, go directly to payment method
-      verifiedAccount = { account_name: accountName };
-      showBankPaymentModal(accountNumber, selectedBank, accountName, amount);
-    });
-  }
-
-  function showBankPaymentModal(account, bank, name, amt) {
-    // Show confirmation page instead of payment method modal
-    showBankConfirmation(account, bank, name, amt);
-  }
-
-  function showBankConfirmation(account, bank, name, amt) {
-    const bankData = NIGERIAN_BANKS.find(b => b.name === bank);
-    const bankLogo = bankData ? bankData.logo : null;
-    
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#f9fafb;display:flex;flex-direction:column;z-index:1000;overflow-y:auto;';
-    
-    modal.innerHTML = `
-      <header style="background:white;padding:0.875rem 1rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e7eb;">
-        <div style="display:flex;align-items:center;gap:0.75rem;">
-          <button id="back-btn-confirm" style="background:none;border:none;color:#111827;cursor:pointer;display:flex;align-items:center;justify-content:center;">${Icon('chevron-left', {size: 20})}</button>
-          <h1 style="font-size:1.0625rem;font-weight:700;margin:0;color:#111827;">Confirm Transfer</h1>
-        </div>
-        <span style="color:#00B876;">${Icon('user', {size: 20})}</span>
-      </header>
-
-      <div style="flex:1;overflow-y:auto;">
-        <div style="position:relative;margin:0 1rem;margin-top:-2rem;padding-bottom:1rem;">
-          <div style="margin:0;overflow:visible;padding:0;position:relative;z-index:1;background:white;border-radius:0.75rem;padding:1rem;text-align:center;">
-            <div style="width:3.25rem;height:3.25rem;border-radius:9999px;background:white;display:flex;align-items:center;justify-content:center;margin:0 auto 0.75rem;overflow:hidden;border:1px solid #e5e7eb;">
-              ${bankLogo ? `<img src="${bankLogo}" loading="eager" decoding="async" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:contain;padding:0.25rem;" onerror="handleBankLogoError(this)" />` : `<span style="color:#111827;">${Icon('building-2', {size: 22})}</span>`}
-            </div>
-            <p style="font-size:0.9375rem;color:#111827;margin:0 0 0.75rem;font-weight:600;">${name}</p>
-            <div style="font-size:1.875rem;font-weight:800;color:#111827;margin-bottom:0.5rem;letter-spacing:-0.01em;">₦${formatMoney(amt)}</div>
-            <p style="font-size:0.75rem;color:#6b7280;margin:0;">To ${bank}</p>
-          </div>
-        </div>
-
-        <div style="margin:1rem;padding:1.25rem;background:white;border-radius:0.75rem;border:1px solid #e5e7eb;">
-          <h3 style="font-size:1rem;font-weight:700;margin:0 0 1rem;color:#111827;">Transfer Details</h3>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.875rem 0;border-bottom:1px solid #f3f4f6;">
-            <div style="color:#6b7280;font-size:0.8125rem;font-weight:500;">Bank</div>
-            <div style="text-align:right;font-weight:700;font-size:0.875rem;color:#111827;">${bank}</div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.875rem 0;border-bottom:1px solid #f3f4f6;">
-            <div style="color:#6b7280;font-size:0.8125rem;font-weight:500;">Account Name</div>
-            <div style="text-align:right;font-weight:700;font-size:0.875rem;color:#111827;">${name}</div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.875rem 0;border-bottom:1px solid #f3f4f6;">
-            <div style="color:#6b7280;font-size:0.8125rem;font-weight:500;">Account Number</div>
-            <div style="text-align:right;font-weight:700;font-size:0.875rem;color:#111827;font-family:monospace;">${account}</div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.875rem 0;">
-            <div style="color:#6b7280;font-size:0.8125rem;font-weight:500;">Amount</div>
-            <div style="text-align:right;font-weight:700;font-size:0.875rem;color:#111827;">₦${formatMoney(amt)}</div>
-          </div>
-        </div>
-
-        <div style="margin:1rem;padding:1rem;background:#fef3c7;border-radius:0.75rem;border-left:4px solid #f59e0b;">
-          <p style="font-size:0.8125rem;color:#92400e;margin:0;font-weight:500;">All bank transfers are final. Please verify details carefully.</p>
-        </div>
-      </div>
-
-      <div style="padding:1rem;background:white;border-top:1px solid #e5e7eb;display:flex;gap:0.75rem;">
-        <button id="cancel-confirm" style="flex:1;padding:1rem;background:#f3f4f6;color:#111827;border:none;border-radius:0.75rem;font-weight:700;cursor:pointer;">Cancel</button>
-        <button id="proceed-pin" style="flex:1;padding:1rem;background:#00B876;color:white;border:none;border-radius:0.75rem;font-weight:700;cursor:pointer;">Continue to PIN</button>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    document.getElementById('back-btn-confirm').addEventListener('click', () => modal.remove());
-    document.getElementById('cancel-confirm').addEventListener('click', () => modal.remove());
-    
-    document.getElementById('proceed-pin').addEventListener('click', () => {
-      modal.remove();
-      showPinModal({
-        amount: amt,
-        recipientLabel: `${name} - ${bank}`,
-        onConfirm: () => {
-          showBankTransactionSuccess(account, bank, name, amt);
+      if (!verifiedAccount) {
+        // Verify
+        const btn = document.getElementById("next-btn");
+        btn.textContent = 'Verifying...'; btn.disabled = true;
+        try {
+          const res = await fetch(
+            `/api/verify-account?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(selectedBankCode)}`,
+            { credentials: 'include' }
+          );
+          const data = await res.json();
+          btn.textContent = 'Next'; btn.disabled = false;
+          if (data.ok) {
+            verifiedAccount = data;
+            accountName = data.account_name;
+            render();
+          } else {
+            toast.error(data.error || 'Could not verify account');
+          }
+        } catch (e) {
+          btn.textContent = 'Next'; btn.disabled = false;
+          toast.error('Verification failed. Enter name manually.');
+          verifiedAccount = { account_name: accountName || 'Unknown' };
+          render();
         }
-      });
+      } else {
+        showAmountStep();
+      }
     });
   }
 
+  function showAmountStep() {
+    const { primaryColor } = Stores.customization.get();
+    const recName = verifiedAccount.account_name;
+    container.innerHTML = `
+    <div style="display:flex;flex-direction:column;min-height:100vh;background:#f9fafb;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;background:white;border-bottom:1px solid #e5e7eb;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <button id="back-btn" style="background:none;border:none;color:#111827;cursor:pointer;">${Icon('chevron-left',{size:22})}</button>
+          <h1 style="font-size:1.0625rem;font-weight:700;margin:0;">Transfer to Bank Account</h1>
+        </div>
+        <button style="background:none;border:none;color:${primaryColor};font-weight:600;cursor:pointer;">History</button>
+      </div>
+      <div style="padding:1.25rem;">
+        <div style="background:white;border-radius:0.875rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;padding-bottom:0.875rem;border-bottom:1px solid #f3f4f6;margin-bottom:0.875rem;">
+            <div style="width:40px;height:40px;border-radius:9999px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;">
+              ${Icon('user',{size:20,color:'#0369a1'})}
+            </div>
+            <div>
+              <p style="font-weight:700;font-size:0.9375rem;color:#111827;margin:0;">${recName}</p>
+              <p style="font-size:0.8125rem;color:#6b7280;margin:0.2rem 0 0;">${accountNumber} · ${selectedBank}</p>
+            </div>
+          </div>
 
+          <label style="font-size:0.8125rem;color:#6b7280;font-weight:600;display:block;margin-bottom:0.5rem;">Amount</label>
+          <div style="display:flex;align-items:center;border:1.5px solid #e5e7eb;border-radius:0.75rem;padding:0.875rem 1rem;gap:0.5rem;">
+            <span style="font-size:1.25rem;font-weight:700;color:#6b7280;">₦</span>
+            <input id="amount-input" type="text" inputmode="numeric" placeholder="0"
+              value="${amount}"
+              style="flex:1;border:none;outline:none;font-size:1.375rem;font-weight:700;color:#111827;font-family:inherit;" />
+          </div>
+          <div id="amount-err" style="color:#ef4444;font-size:0.8rem;min-height:1.2em;margin-top:0.375rem;"></div>
+        </div>
+
+        <button id="send-btn" style="width:100%;background:${primaryColor};color:white;border:none;padding:0.9rem;border-radius:9999px;font-weight:700;font-size:1rem;cursor:pointer;">Send</button>
+      </div>
+    </div>`;
+
+    document.getElementById('back-btn').addEventListener('click', () => render());
+
+    const amountInput = document.getElementById('amount-input');
+    const sendBtn = document.getElementById('send-btn');
+    const errEl = document.getElementById('amount-err');
+
+    sendBtn.addEventListener('click', async () => {
+      const amt = parseFloat(amountInput.value.replace(/,/g,'') || '0');
+      errEl.textContent = '';
+      if (!amt || amt <= 0) { errEl.textContent = 'Enter an amount'; return; }
+      amount = amountInput.value;
+      showBankTransactionSuccess(accountNumber, selectedBank, verifiedAccount.account_name, amt);
+    });
+  }
 
   function showBankTransactionSuccess(account, bank, name, amt) {
     const txId = Date.now().toString().slice(-12);
     const sessionId = 'sess_' + Math.random().toString(36).substr(2, 9).toUpperCase();
     const bankData = NIGERIAN_BANKS.find(b => b.name === bank);
     const bankLogo = bankData ? bankData.logo : null;
-    
+
+    // Save to recent transfers
+    Stores.recentTransfers.addBank({
+      name,
+      account_number: account,
+      bank,
+    });
+
     Stores.transaction.addTransaction({
       type: `Transfer to ${name}`,
       amount: `-₦${formatMoney(amt)}`,

@@ -66,8 +66,9 @@ const customizationStore = createStore(
     buttonImages: {},
     buttonBackgroundColor: "#F5F5F7",
     networkImages: {},
+    adBanners: [],
   },
-  ["primaryColor", "secondaryColor", "profilePhoto", "profilePhotoSize", "buttonImages", "buttonBackgroundColor", "networkImages"]
+  ["primaryColor", "secondaryColor", "profilePhoto", "profilePhotoSize", "buttonImages", "buttonBackgroundColor", "networkImages", "adBanners"]
 );
 customizationStore.setButtonImage = (key, url) =>
   customizationStore.set((s) => ({ buttonImages: { ...s.buttonImages, [key]: url } }));
@@ -87,6 +88,11 @@ customizationStore.resetNetworkImage = (key) =>
     return { networkImages: ni };
   });
 customizationStore.resetAllNetworkImages = () => customizationStore.set({ networkImages: {} });
+customizationStore.addAdBanner = (url) =>
+  customizationStore.set((s) => ({ adBanners: [...(s.adBanners || []), url] }));
+customizationStore.removeAdBanner = (idx) =>
+  customizationStore.set((s) => ({ adBanners: (s.adBanners || []).filter((_, i) => i !== idx) }));
+customizationStore.clearAdBanners = () => customizationStore.set({ adBanners: [] });
 
 // ---- Safebox store ----
 const safeboxStore = createStore("safebox-storage", {
@@ -116,6 +122,21 @@ safeboxStore.removeLockedSaving = (id) => {
 };
 safeboxStore.updateSafeboxBalance = (amount) =>
   safeboxStore.set((s) => ({ safeboxBalance: s.safeboxBalance + amount }));
+
+// ---- Recent Transfers store (persists last 10 bank + opay recipients) ----
+const recentTransfersStore = createStore("opay-recent-transfers", { opay: [], bank: [] });
+recentTransfersStore.addOpay = (recipient) => {
+  recentTransfersStore.set((s) => {
+    const filtered = (s.opay || []).filter(r => r.account_number !== recipient.account_number);
+    return { opay: [recipient, ...filtered].slice(0, 10) };
+  });
+};
+recentTransfersStore.addBank = (recipient) => {
+  recentTransfersStore.set((s) => {
+    const filtered = (s.bank || []).filter(r => r.account_number !== recipient.account_number);
+    return { bank: [recipient, ...filtered].slice(0, 10) };
+  });
+};
 
 // ---- Transaction store ----
 const transactionStore = createStore("opay-transactions", {
@@ -167,6 +188,7 @@ window.Stores = {
   customization: customizationStore,
   safebox: safeboxStore,
   transaction: transactionStore,
+  recentTransfers: recentTransfersStore,
 };
 
 // ---- Networks (shared across Airtime & Data pages) ----
