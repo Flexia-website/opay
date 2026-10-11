@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 import hashlib
@@ -18,23 +19,23 @@ app.permanent_session_lifetime = timedelta(days=30)
 CORS(app, supports_credentials=True, origins=['*'])
 
 # ── PostgreSQL via SQLAlchemy ──────────────────────────────────────────────────
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///opay_local.db')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///opay_local.db').strip()
 # Render/Heroku use postgres:// but SQLAlchemy needs postgresql://
 if DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+# Strip unsupported query params that break SQLAlchemy URL parsing
+DATABASE_URL = re.sub(r'[&?]channel_binding=[^&]*', '', DATABASE_URL)
+DATABASE_URL = re.sub(r'[&?]options=[^&]*', '', DATABASE_URL)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # ── Cloudinary config ──────────────────────────────────────────────────────────
-# Accepts CLOUDINARY_URL  (cloudinary://api_key:api_secret@cloud_name)
 _cloudinary_url = os.environ.get('CLOUDINARY_URL', '')
 if _cloudinary_url:
-    # cloudinary.config() can parse the URL directly when passed as url=
     cloudinary.config(url=_cloudinary_url, secure=True)
 else:
-    # fallback to individual vars for local dev
     cloudinary.config(
         cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
         api_key=os.environ.get('CLOUDINARY_API_KEY', ''),
@@ -48,7 +49,6 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '147852')
 ADMIN_PIN = os.environ.get('ADMIN_PIN', '0803')
 
 # ── NubAPI (free Nigerian bank account name lookup) ────────────────────────────
-# Get your free token at https://nubapi.com/user/api-tokens
 NUBAPI_TOKEN = os.environ.get('NUBAPI_TOKEN', '')
 
 # ── Database Models ────────────────────────────────────────────────────────────
@@ -72,12 +72,12 @@ class User(db.Model):
     last_login = db.Column(db.DateTime, nullable=True)
     notes = db.Column(db.Text, nullable=True)
     customization = db.Column(db.Text, default='{}')
-    tier = db.Column(db.Integer, default=1)           # 1 | 2 | 3
+    tier = db.Column(db.Integer, default=1)
     nickname = db.Column(db.String(80), nullable=True)
     gender = db.Column(db.String(20), nullable=True)
-    dob = db.Column(db.String(20), nullable=True)      # stored as string **-**-YY pattern
+    dob = db.Column(db.String(20), nullable=True)
     address = db.Column(db.Text, nullable=True)
-    tier_upgrade_requested = db.Column(db.Boolean, default=False)  # JSON string
+    tier_upgrade_requested = db.Column(db.Boolean, default=False)
 
     def to_dict(self, include_sensitive=False):
         d = {
@@ -154,7 +154,6 @@ def require_admin(f):
     return decorated
 
 def require_auth(f):
-    """Requires any logged-in user (admin or normal user)."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('is_admin') and not session.get('user_id'):
@@ -170,14 +169,12 @@ def login():
 
     if method == 'password':
         pw = data.get('password', '')
-        # Check if it's the master admin password
         if pw == ADMIN_PASSWORD:
             session.permanent = True
             session['is_admin'] = True
             session['user'] = ADMIN_USERNAME
             session.pop('user_id', None)
             return jsonify({'ok': True, 'is_admin': True, 'username': ADMIN_USERNAME})
-        # Otherwise check normal users
         user = User.query.filter_by(email=data.get('email', ''), is_active=True).first()
         if user and user.password_hash == hash_password(pw):
             user.last_login = datetime.utcnow()
@@ -197,9 +194,8 @@ def login():
             session['user'] = ADMIN_USERNAME
             session.pop('user_id', None)
             return jsonify({'ok': True, 'is_admin': True, 'username': ADMIN_USERNAME})
-        # Check normal users by pin
-        user = User.query.filter_by(is_active=True).all()
-        for u in user:
+        users = User.query.filter_by(is_active=True).all()
+        for u in users:
             if u.pin_hash and u.pin_hash == hash_password(pin) and u.username == data.get('username', ''):
                 u.last_login = datetime.utcnow()
                 db.session.commit()
@@ -221,7 +217,6 @@ def login():
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    """Normal users can register themselves."""
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     email = (data.get('email') or '').strip().lower()
@@ -238,7 +233,6 @@ def register():
     if User.query.filter_by(email=email).first():
         return jsonify({'ok': False, 'error': 'Email already registered'}), 409
 
-    # Generate a random 10-digit account number
     import random
     account_number = '0' + ''.join([str(random.randint(0, 9)) for _ in range(9)])
 
@@ -260,11 +254,7 @@ def register():
     session['user'] = user.username
     session.pop('is_admin', None)
 
-    return jsonify({
-        'ok': True,
-        'user': user.to_dict(),
-        'message': 'Account created successfully'
-    })
+    return jsonify({'ok': True, 'user': user.to_dict(), 'message': 'Account created successfully'})
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -315,7 +305,6 @@ def get_balance():
 @app.route('/api/user/balance', methods=['GET'])
 @require_auth
 def get_user_balance():
-    """Normal users call this to get their current balance from the DB (live sync)."""
     if session.get('is_admin'):
         state = get_admin_state()
         return jsonify({'ok': True, 'balance': state.balance, 'safebox_balance': state.safebox_balance})
@@ -330,7 +319,7 @@ def adjust_balance():
     data = request.get_json() or {}
     operation = data.get('operation', 'add')
     amount = float(data.get('amount', 0))
-    target_user_id = data.get('user_id')  # if admin adjusting a user's balance
+    target_user_id = data.get('user_id')
 
     if amount <= 0:
         return jsonify({'error': 'Amount must be positive'}), 400
@@ -384,7 +373,6 @@ def list_users():
 @app.route('/api/admin/users', methods=['POST'])
 @require_admin
 def create_user():
-    """Admin creates a user account directly."""
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     email = (data.get('email') or '').strip().lower()
@@ -474,7 +462,6 @@ def get_customization():
                 return jsonify(json.loads(user.customization or '{}'))
             except Exception:
                 return jsonify({})
-    # Public default
     return jsonify(get_admin_customization())
 
 @app.route('/api/customization', methods=['POST'])
@@ -619,7 +606,6 @@ def get_state():
                 cust = json.loads(user.customization or '{}')
             except Exception:
                 cust = {}
-            # Merge admin customization (for shared branding) with user's own overrides
             admin_cust = get_admin_customization()
             merged = {**admin_cust, **cust}
             return jsonify({
@@ -640,7 +626,7 @@ def get_state():
         'user': '',
     })
 
-# ── User self-service: update own profile ─────────────────────────────────────
+# ── User self-service ──────────────────────────────────────────────────────────
 @app.route('/api/user/tier/request', methods=['POST'])
 @require_auth
 def request_tier_upgrade():
@@ -680,17 +666,24 @@ def update_user_profile_fields():
     if not user:
         return jsonify({'ok': False, 'error': 'Not found'}), 404
     data = request.get_json() or {}
-    allowed = ['nickname', 'gender', 'dob', 'address', 'full_name']
+    allowed = ['nickname', 'gender', 'dob', 'address', 'full_name', 'phone']
     for k in allowed:
         if k in data:
             setattr(user, k, data[k])
+    if 'pin' in data and data['pin']:
+        user.pin_hash = hash_password(str(data['pin']))
+    if 'password' in data and data['password']:
+        if not data.get('current_password'):
+            return jsonify({'error': 'Current password required'}), 400
+        if user.password_hash != hash_password(data['current_password']):
+            return jsonify({'error': 'Current password incorrect'}), 401
+        user.password_hash = hash_password(data['password'])
     db.session.commit()
-    return jsonify({'ok': True})
+    return jsonify({'ok': True, 'user': user.to_dict()})
 
 @app.route('/api/user/customization', methods=['POST'])
 @require_auth
 def set_user_customization():
-    """Normal users save their own customization (colors, profile photo, etc.) to PostgreSQL."""
     if session.get('is_admin'):
         return jsonify({'error': 'Admin uses /api/customization'}), 400
     user = db.session.get(User, session['user_id'])
@@ -709,42 +702,14 @@ def set_user_customization():
     db.session.commit()
     return jsonify({'ok': True, 'customization': current})
 
-@app.route('/api/user/profile', methods=['PATCH'])
-@require_auth
-def update_own_profile():
-    if session.get('is_admin'):
-        return jsonify({'error': 'Admin uses /api/customization'}), 400
-    user = db.session.get(User, session['user_id'])
-    if not user:
-        return jsonify({'error': 'Not found'}), 404
-    data = request.get_json() or {}
-    if 'full_name' in data:
-        user.full_name = data['full_name']
-    if 'phone' in data:
-        user.phone = data['phone']
-    if 'pin' in data and data['pin']:
-        user.pin_hash = hash_password(str(data['pin']))
-    if 'password' in data and data['password']:
-        if not data.get('current_password'):
-            return jsonify({'error': 'Current password required'}), 400
-        if user.password_hash != hash_password(data['current_password']):
-            return jsonify({'error': 'Current password incorrect'}), 401
-        user.password_hash = hash_password(data['password'])
-    db.session.commit()
-    return jsonify({'ok': True, 'user': user.to_dict()})
-
-# ── P2P Transfer: look up a registered user by username or account number ─────
+# ── P2P Transfer ───────────────────────────────────────────────────────────────
 @app.route('/api/users/lookup', methods=['GET'])
 @require_auth
 def lookup_user():
-    """Find a user by username or account number for peer-to-peer transfer."""
     q = (request.args.get('q') or '').strip()
     if len(q) < 2:
         return jsonify({'ok': False, 'error': 'Query too short'}), 400
-
-    # Don't allow looking up yourself
     current_id = session.get('user_id')
-
     user = User.query.filter(
         User.is_active == True,
         db.or_(
@@ -753,13 +718,10 @@ def lookup_user():
             User.phone == q
         )
     ).first()
-
     if not user:
         return jsonify({'ok': False, 'error': 'No OPay user found with that username, account number, or phone'})
-
     if user.id == current_id:
         return jsonify({'ok': False, 'error': 'You cannot transfer to yourself'})
-
     return jsonify({
         'ok': True,
         'user': {
@@ -774,7 +736,6 @@ def lookup_user():
 @app.route('/api/transfer/opay', methods=['POST'])
 @require_auth
 def transfer_opay():
-    """Peer-to-peer OPay transfer between registered users."""
     data = request.get_json() or {}
     recipient_id = data.get('recipient_id')
     amount = float(data.get('amount', 0))
@@ -788,7 +749,6 @@ def transfer_opay():
         return jsonify({'ok': False, 'error': 'Recipient not found'}), 404
 
     if session.get('is_admin'):
-        # Admin sends from admin balance
         state = get_admin_state()
         if state.balance < amount:
             return jsonify({'ok': False, 'error': 'Insufficient balance'}), 400
@@ -835,7 +795,6 @@ def verify_account():
         return jsonify({'ok': False, 'error': 'Account number must be 10 digits'}), 400
     if not bank_code:
         return jsonify({'ok': False, 'error': 'Bank code is required'}), 400
-
     if not NUBAPI_TOKEN:
         return jsonify({'ok': False, 'error': 'Account verification not configured (NUBAPI_TOKEN missing)'}), 503
 
@@ -847,7 +806,6 @@ def verify_account():
             timeout=10
         )
         data = resp.json()
-        # NubAPI returns account_name, first_name, last_name, Bank_name, account_number, bank_code
         if resp.status_code == 200 and data.get('account_name'):
             return jsonify({
                 'ok': True,
@@ -859,7 +817,7 @@ def verify_account():
         else:
             msg = data.get('message') or data.get('error') or 'Account not found'
             return jsonify({'ok': False, 'error': msg})
-    except Exception as e:
+    except Exception:
         return jsonify({'ok': False, 'error': 'Verification service unavailable'}), 502
 
 # ── PWA: serve index.html for all non-API routes ──────────────────────────────
@@ -876,7 +834,6 @@ def serve(path):
 # ── DB init ────────────────────────────────────────────────────────────────────
 with app.app_context():
     db.create_all()
-    # Ensure admin app state row exists
     if not db.session.get(AppState, 1):
         db.session.add(AppState(id=1))
         db.session.commit()
