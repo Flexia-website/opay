@@ -1,6 +1,6 @@
 // ── Transfer to OPay User (P2P) ───────────────────────────────────────────────
 function renderToOpayPage(container) {
-  let step = 'find';      // 'find' | 'amount' | 'confirm' | 'success'
+  let step = 'find';
   let recipient = null;
   let amount = 0;
   let note = '';
@@ -19,7 +19,6 @@ function renderToOpayPage(container) {
     const { primaryColor, adBanners } = Stores.customization.get();
     const recents = (Stores.recentTransfers.get().opay || []);
 
-    // Build ad carousel html
     function adCarouselHtml() {
       const banners = adBanners && adBanners.length > 0 ? adBanners : [];
       if (banners.length === 0) return '';
@@ -64,10 +63,8 @@ function renderToOpayPage(container) {
       </div>
 
       <div style="padding:1rem 1.25rem;">
-
         ${adBanners && adBanners.length > 0 ? `<div style="margin-bottom:1rem;">${adCarouselHtml()}</div>` : ''}
 
-        <!-- Instant transfer badge -->
         <div style="background:#f0fdf4;border-radius:0.75rem;padding:0.875rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.625rem;">
           <div style="width:28px;height:28px;border-radius:9999px;background:${primaryColor};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             ${Icon('zap',{size:14,color:'white'})}
@@ -75,7 +72,6 @@ function renderToOpayPage(container) {
           <span style="font-size:0.875rem;font-weight:600;color:#166534;">Instant, Zero Issues, Free</span>
         </div>
 
-        <!-- Search field -->
         <div style="background:white;border-radius:0.875rem;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:1rem;">
           <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:0.5rem;">Recipient Account</label>
           <div style="display:flex;gap:0.5rem;align-items:center;border:1.5px solid #e5e7eb;border-radius:0.625rem;padding:0.625rem 0.75rem;">
@@ -92,7 +88,6 @@ function renderToOpayPage(container) {
           <p style="font-size:0.8125rem;color:#6b7280;margin:0.5rem 0 0;">Don't know the recipient's OPay account number? <button id="ask-them-btn" style="background:none;border:none;color:${primaryColor};font-weight:600;font-size:0.8125rem;cursor:pointer;padding:0;">Ask them &gt;</button></p>
         </div>
 
-        <!-- Recents / Favourites tabs -->
         <div style="background:white;border-radius:0.875rem;padding:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:1rem;">
           <div style="display:flex;gap:1.5rem;border-bottom:1px solid #f3f4f6;margin-bottom:0;">
             <button id="tab-recents" style="background:none;border:none;font-weight:700;font-size:0.9375rem;color:${primaryColor};padding:0 0 0.75rem;border-bottom:2px solid ${primaryColor};cursor:pointer;">Recents</button>
@@ -107,7 +102,6 @@ function renderToOpayPage(container) {
           </div>
         </div>
 
-        <!-- See who else is on OPay -->
         <div style="background:white;border-radius:0.875rem;padding:1rem 1.25rem;box-shadow:0 1px 3px rgba(0,0,0,0.06);display:flex;align-items:center;gap:0.875rem;margin-bottom:1rem;cursor:pointer;">
           <div style="width:40px;height:40px;border-radius:9999px;background:#e8f5ec;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             ${Icon('users',{size:20,color:primaryColor})}
@@ -118,7 +112,6 @@ function renderToOpayPage(container) {
           </div>
           ${Icon('chevron-right',{size:18,color:'#9ca3af'})}
         </div>
-
       </div>
     </div>`;
 
@@ -131,7 +124,6 @@ function renderToOpayPage(container) {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
     input.addEventListener('input', () => { if (input.value.trim()) doSearch(); });
 
-    // Recent item click
     container.querySelectorAll('[data-recent-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const r = recents.find(x => String(x.id) === btn.dataset.recentId);
@@ -146,7 +138,7 @@ function renderToOpayPage(container) {
       const dots = container.querySelectorAll('.ad-dot');
       setInterval(() => {
         cur = (cur + 1) % adBanners.length;
-        inner.style.transform = \`translateX(-\${cur * 100}%)\`;
+        inner.style.transform = `translateX(-${cur * 100}%)`;
         dots.forEach((d, i) => d.style.background = i === cur ? primaryColor : '#d1d5db');
       }, 3500);
     }
@@ -155,20 +147,11 @@ function renderToOpayPage(container) {
       const q = input.value.trim();
       errEl.textContent = '';
       resultEl.innerHTML = '';
-      if (!q) return;
-
-    async function doSearch() {
-      const q = input.value.trim();
-      errEl.textContent = '';
-      resultEl.innerHTML = '';
       if (!q) { errEl.textContent = 'Enter a username, account number, or phone'; return; }
-
-      searchBtn.textContent = 'Searching...';
 
       try {
         const res = await fetch(`/api/users/lookup?q=${encodeURIComponent(q)}`, { credentials: 'include' });
         const data = await res.json();
-                searchBtn.disabled = false;
 
         if (data.ok) {
           const u = data.user;
@@ -197,15 +180,12 @@ function renderToOpayPage(container) {
           errEl.textContent = data.error || 'User not found';
         }
       } catch (e) {
-                searchBtn.disabled = false;
         errEl.textContent = 'Network error. Please try again.';
       }
     }
   }
 
-  // ── STEP 2: Enter amount ─────────────────────────────────────────────────
-  function renderAmount() {
-  // ── STEP 2: Enter amount ─────────────────────────────────────────────────
+  // ── STEP 2: Enter amount ──────────────────────────────────────────────────
   function renderAmount() {
     const { primaryColor } = Stores.customization.get();
     const balance = getBalance();
@@ -400,7 +380,7 @@ function renderToOpayPage(container) {
     renderInner();
   }
 
-  // ── STEP 4: Success ──────────────────────────────────────────────────────
+  // ── STEP 4: Success ───────────────────────────────────────────────────────
   function renderSuccess(data) {
     container.innerHTML = `
     <div style="min-height:100vh;background:#f9fafb;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;">
@@ -438,7 +418,6 @@ function renderToOpayPage(container) {
     });
   }
 
-  // Start
   renderFind();
 }
 
